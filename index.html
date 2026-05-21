@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Monitor Alur Kerja Hewan Qurban</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'sans-serif'] },
+                colors: {
+                    'qurban-dark':   '#0f4c3a',
+                    'qurban-green':  '#198754',
+                    'qurban-orange': '#f39c12',
+                    'qurban-red':    '#dc3545',
+                    'qurban-purple': '#6f42c1',
+                    'qurban-teal':   '#20c997',
+                    'qurban-blue':   '#0d6efd',
+                    'qurban-bg':     '#f8f9fa',
+                    'step-blue':     '#2b78e4',
+                    'step-green':    '#27a844',
+                    'step-orange':   '#fd7e14',
+                    'step-purple':   '#6f42c1',
+                    'step-teal':     '#20c997'
+                }
+            }
+        }
+    }
+</script>
+<style>
+    /* ── Reset & full-viewport body ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Inter', sans-serif;
+        background-color: #000; /* Background hitam di luar wrapper jika aspek rasio berbeda */
+    }
+
+    #viewport-wrapper {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dashboard-container {
+        width: 100vw;
+        height: 100vh;
+        background: white;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 12px solid #0f4c3a;
+    }
+
+    /* ── Table Global Override ── */
+    .qurban-table th {
+        background-color: #0f4c3a;
+        color: white;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 1.35rem; /* DI-GEDEIN */
+        padding: 1vh 8px;
+        border: 2px solid #1a6b52;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .qurban-table td {
+        padding: 0.5vh 8px;
+        border: 2px solid #cbd5e1;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 1.55rem; /* DI-GEDEIN BANGET */
+        font-weight: 700;    /* BOLD BIAR JELAS */
+        color: #1e293b;
+    }
+    .qurban-table tr:nth-child(even) { background-color: #f1f5f9; }
+
+    /* ── Status badges ── */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 16px;
+        border-radius: 30px;
+        font-size: 1.45rem; /* DI-GEDEIN */
+        font-weight: 800;
+    }
+    .status-selesai  { color: #198754; }
+    .status-proses   { color: #f39c12; }
+    .status-belum    { color: #dc3545; }
+    .status-dibagikan{ color: #20c997; }
+
+    /* ── Progress circles ── */
+    .progress-circle {
+        position: relative;
+        width: 110px; /* DI-GEDEIN */
+        height: 110px; /* DI-GEDEIN */
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1.8rem; /* DI-GEDEIN */
+        margin: 0 auto;
+    }
+    .progress-circle::before {
+        content: '';
+        position: absolute;
+        inset: 8px; /* Disesuaikan ketebalannya */
+        border-radius: 50%;
+        background: white;
+    }
+    .progress-circle span { position: relative; z-index: 1; }
+
+    .pc-blue   { background: conic-gradient(#2b78e4 83%, #e2e8f0 0); color: #2b78e4; }
+    .pc-green  { background: conic-gradient(#27a844 50%, #e2e8f0 0); color: #27a844; }
+    .pc-orange { background: conic-gradient(#fd7e14 33%, #e2e8f0 0); color: #fd7e14; }
+    .pc-purple { background: conic-gradient(#6f42c1 17%, #e2e8f0 0); color: #6f42c1; }
+
+    /* ── Step arrow ── */
+    .step-card { position: relative; }
+    .step-arrow {
+        position: absolute;
+        right: -24px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0; height: 0;
+        border-top: 18px solid transparent;
+        border-bottom: 18px solid transparent;
+        border-left: 18px solid #cbd5e1;
+        z-index: 10;
+    }
+
+    /* ── Header logo image ── */
+    .logo-img-wrapper {
+        width: 217px;
+        height: 100px;
+        overflow: hidden;
+        border-radius: 8px;
+        flex-shrink: 0;
+    }
+    .logo-img-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+    }
+
+    /* ── Date/time box (Tetap dipertahankan ukurannya) ── */
+    #dt-box {
+        border: 2px solid #0f4c3a;
+        border-radius: 12px;
+        overflow: hidden;
+        width: 240px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        background: white;
+    }
+    #dt-box .dt-header {
+        background: #0f4c3a;
+        color: white;
+        text-align: center;
+        padding: 5px 0;
+        font-weight: 700;
+        letter-spacing: .12em;
+        font-size: 0.8rem;
+    }
+    #dt-box .dt-body { padding: 10px 14px; }
+    #dt-box .dt-date-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 8px;
+        color: #0f4c3a;
+        font-weight: 600;
+    }
+    #dt-box .dt-date-row i { font-size: 1.5rem; margin-top: 2px; }
+    #dt-box .dt-masehi  { font-size: 1.05rem; line-height: 1.3; }
+    #dt-box .dt-hijri   { font-size: 0.8rem; opacity: .78; font-weight: 400; }
+    #dt-box .dt-time-row {
+        border-top: 1px solid #e2e8f0;
+        padding-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #0f4c3a;
+        font-weight: 700;
+        font-size: 1.25rem;
+    }
+</style>
+</head>
+
+<body>
+<div id="viewport-wrapper">
+
+<div class="dashboard-container" id="dashboard">
+
+    <header class="flex justify-between items-start px-6 py-4 pb-2 border-b-4 border-qurban-dark flex-shrink-0">
+
+        <div class="flex items-center w-1/4">
+            <div class="logo-img-wrapper">
+                <img src="https://ahsan.tv/wp-content/uploads/2026/05/ini.webp" alt="Logo / Header Qurban" loading="eager"/>
+            </div>
+        </div>
+
+        <div class="text-center w-2/4 pt-1">
+            <h2 class="text-xl font-bold text-qurban-dark tracking-wider mb-1">MONITOR ALUR KERJA (WORKFLOW)</h2>
+            <h1 class="text-7xl font-extrabold text-qurban-dark mb-3 drop-shadow-sm">HEWAN QURBAN</h1>
+            <div class="bg-qurban-dark text-white py-2 px-8 rounded-full inline-flex items-center gap-2 font-semibold text-lg shadow-md">
+                <i class="fas fa-calendar-alt"></i>
+                Hari Idul Adha, 10 Dzulhijjah 1447H / 27 Mei 2026
+            </div>
+        </div>
+
+        <div class="w-1/4 flex justify-end">
+            <div id="dt-box">
+                <div class="dt-header">TANGGAL &amp; WAKTU</div>
+                <div class="dt-body">
+                    <div class="dt-date-row">
+                        <i class="far fa-calendar-check"></i>
+                        <div>
+                            <div class="dt-masehi" id="dt-masehi">—</div>
+                            <div class="dt-hijri"  id="dt-hijri">—</div>
+                        </div>
+                    </div>
+                    <div class="dt-time-row">
+                        <i class="far fa-clock"></i>
+                        <span id="dt-time">--:--:-- WIB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </header>
+
+    <div class="flex justify-between items-center px-6 py-4 bg-slate-100 border-b-2 border-slate-300 gap-6 flex-shrink-0">
+
+        <div class="flex-1 bg-white border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative">
+            <div class="w-20 h-20 rounded-full bg-step-blue text-white flex items-center justify-center text-4xl shrink-0">
+                <i class="fas fa-truck"></i>
+            </div>
+            <div class="leading-tight">
+                <div class="text-step-blue font-black text-2xl">1. KEDATANGAN</div>
+                <div class="text-base font-bold text-gray-600 mt-1">Hewan tiba di lokasi</div>
+            </div>
+            <div class="step-arrow"></div>
+        </div>
+
+        <div class="flex-1 bg-white border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative ml-4">
+            <div class="w-20 h-20 rounded-full bg-step-green text-white flex items-center justify-center text-4xl shrink-0">
+                <i class="fas fa-utensils"></i>
+            </div>
+            <div class="leading-tight">
+                <div class="text-step-green font-black text-2xl">2. SEMBELIHAN</div>
+                <div class="text-base font-bold text-gray-600 mt-1">Proses penyembelihan</div>
+            </div>
+            <div class="step-arrow"></div>
+        </div>
+
+        <div class="flex-1 bg-white border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative ml-4">
+            <div class="w-20 h-20 rounded-full bg-step-orange text-white flex items-center justify-center text-4xl shrink-0">
+                <i class="fas fa-scroll"></i>
+            </div>
+            <div class="leading-tight">
+                <div class="text-step-orange font-black text-2xl">3. PENGULITAN</div>
+                <div class="text-base font-bold text-gray-600 mt-1">Pembersihan kulit</div>
+            </div>
+            <div class="step-arrow"></div>
+        </div>
+
+        <div class="flex-1 bg-white border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md ml-4">
+            <div class="w-20 h-20 rounded-full bg-step-purple text-white flex items-center justify-center text-4xl shrink-0">
+                <i class="fas fa-box-open"></i>
+            </div>
+            <div class="leading-tight">
+                <div class="text-step-purple font-black text-2xl">4. PENGEMASAN</div>
+                <div class="text-base font-bold text-gray-600 mt-1">Pengemasan daging</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="flex-grow px-6 py-4 overflow-hidden flex flex-col bg-white" style="min-height:0;">
+        <table class="w-full qurban-table table-fixed h-full">
+            <colgroup>
+                <col style="width:5%"/>
+                <col style="width:11%"/>
+                <col style="width:15%"/>
+                <col style="width:21%"/>
+                <col style="width:12%"/>
+                <col style="width:12%"/>
+                <col style="width:12%"/>
+                <col style="width:12%"/>
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>ID HEWAN</th>
+                    <th>JENIS HEWAN</th>
+                    <th>PEMILIK / PENYUMBANG</th>
+                    <th class="bg-step-blue">1. KEDATANGAN</th>
+                    <th class="bg-step-green">2. SEMBELIHAN</th>
+                    <th class="bg-step-orange">3. PENGULITAN</th>
+                    <th class="bg-step-purple">4. PENGEMASAN</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="height:calc(100%/6);">
+                    <td>1</td>
+                    <td class="text-qurban-dark font-black">HQ-001</td>
+                    <td><i class="fas fa-cow text-gray-700 mr-2 text-2xl"></i>Sapi</td>
+                    <td>Ahmad</td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-dibagikan"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                </tr>
+                <tr style="height:calc(100%/6);">
+                    <td>2</td>
+                    <td class="text-qurban-dark font-black">HQ-002</td>
+                    <td><i class="fas fa-cloud text-gray-700 mr-2 text-2xl"></i>Kambing</td>
+                    <td>Budi</td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-proses"><i class="fas fa-clock"></i> Proses</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                </tr>
+                <tr style="height:calc(100%/6);">
+                    <td>3</td>
+                    <td class="text-qurban-dark font-black">HQ-003</td>
+                    <td><i class="fas fa-cow text-gray-700 mr-2 text-2xl"></i>Sapi</td>
+                    <td>Donatur Umum</td>
+                    <td><span class="status-badge status-proses"><i class="fas fa-clock"></i> Proses</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                </tr>
+                <tr style="height:calc(100%/6);">
+                    <td>4</td>
+                    <td class="text-qurban-dark font-black">HQ-004</td>
+                    <td><i class="fas fa-cloud text-gray-700 mr-2 text-2xl"></i>Kambing</td>
+                    <td>Hamba Allah</td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-proses"><i class="fas fa-clock"></i> Proses</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                </tr>
+                <tr style="height:calc(100%/6);">
+                    <td>5</td>
+                    <td class="text-qurban-dark font-black">HQ-005</td>
+                    <td><i class="fas fa-cow text-gray-700 mr-2 text-2xl"></i>Sapi</td>
+                    <td>Keluarga Mujahidin</td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-selesai"><i class="fas fa-check-circle"></i> Selesai</span></td>
+                    <td><span class="status-badge status-proses"><i class="fas fa-clock"></i> Proses</span></td>
+                </tr>
+                <tr style="height:calc(100%/6);">
+                    <td>6</td>
+                    <td class="text-qurban-dark font-black">HQ-006</td>
+                    <td><i class="fas fa-cloud text-gray-700 mr-2 text-2xl"></i>Kambing</td>
+                    <td>Siti Aisyah</td>
+                    <td><span class="status-badge status-proses"><i class="fas fa-clock"></i> Proses</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                    <td><span class="status-badge status-belum"><i class="fas fa-times-circle"></i> Belum</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="px-6 py-4 flex gap-6 flex-shrink-0 bg-slate-50 border-t-2 border-slate-200" style="height: 300px;">
+
+        <div class="w-1/4 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
+            <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">RINGKASAN TOTAL HEWAN</div>
+            <div class="flex p-4 items-center justify-between h-full">
+                <div class="text-center w-1/2">
+                    <div class="text-8xl font-black text-qurban-dark leading-none">6</div>
+                    <div class="text-base font-black text-gray-500 mt-2 tracking-wide">TOTAL HEWAN</div>
+                </div>
+                <div class="w-1/2 flex flex-col gap-2 font-bold text-lg border-l-2 border-slate-200 pl-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-base font-black text-gray-500">SELESAI</span>
+                        <span class="text-3xl font-black text-qurban-teal">1</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-base font-black text-gray-500">PROSES</span>
+                        <span class="text-3xl font-black text-qurban-orange">2</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-base font-black text-gray-500">BELUM</span>
+                        <span class="text-3xl font-black text-qurban-red">3</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-grow border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden relative shadow-sm">
+            <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">PROGRESS SETIAP TAHAP</div>
+            <div class="flex justify-around items-center h-full pt-2 pb-6">
+
+                <div class="text-center flex flex-col items-center justify-center">
+                    <div class="text-step-blue font-black text-base tracking-wide mb-1">1. KEDATANGAN</div>
+                    <div class="progress-circle pc-blue mb-1"><span>83%</span></div>
+                    <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
+                        <i class="fas fa-truck text-step-blue text-sm"></i> 5/6
+                    </div>
+                </div>
+
+                <div class="text-center flex flex-col items-center justify-center">
+                    <div class="text-step-green font-black text-base tracking-wide mb-1">2. SEMBELIHAN</div>
+                    <div class="progress-circle pc-green mb-1"><span>50%</span></div>
+                    <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
+                        <i class="fas fa-utensils text-step-green text-sm"></i> 3/6
+                    </div>
+                </div>
+
+                <div class="text-center flex flex-col items-center justify-center">
+                    <div class="text-step-orange font-black text-base tracking-wide mb-1">3. PENGULITAN</div>
+                    <div class="progress-circle pc-orange mb-1"><span>33%</span></div>
+                    <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
+                        <i class="fas fa-scroll text-step-orange text-sm"></i> 2/6
+                    </div>
+                </div>
+
+                <div class="text-center flex flex-col items-center justify-center">
+                    <div class="text-step-purple font-black text-base tracking-wide mb-1">4. PENGEMASAN</div>
+                    <div class="progress-circle pc-purple mb-1"><span>17%</span></div>
+                    <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
+                        <i class="fas fa-box-open text-step-purple text-sm"></i> 1/6
+                    </div>
+                </div>
+
+            </div>
+            <div class="absolute bottom-1 left-0 right-0 text-center text-sm italic text-slate-400 font-bold tracking-wide">
+                *Data akan otomatis ter-update sesuai perkembangan di lapangan
+            </div>
+        </div>
+
+        <div class="w-1/5 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
+            <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">KETERANGAN STATUS</div>
+            <div class="p-4 flex flex-col gap-3 justify-center h-full">
+                <div class="flex items-center gap-4">
+                    <i class="fas fa-check-circle text-3xl text-qurban-green shrink-0"></i>
+                    <span class="font-bold text-slate-700 text-lg">Selesai / Dibagikan</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <i class="fas fa-clock text-3xl text-qurban-orange shrink-0"></i>
+                    <span class="font-bold text-slate-700 text-lg">Sedang Proses</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <i class="fas fa-times-circle text-3xl text-qurban-red shrink-0"></i>
+                    <span class="font-bold text-slate-700 text-lg">Belum Dimulai</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="bg-qurban-dark text-white p-3 flex justify-between items-center px-6 mt-auto flex-shrink-0">
+        <div class="flex items-center gap-4 text-xl font-medium">
+            <i class="fas fa-book-open text-2xl text-qurban-orange"></i>
+            <span class="italic text-base font-semibold">"Maka laksanakanlah shalat karena Tuhanmu; dan berkurbanlah."
+                <span class="text-xs text-slate-300 ml-2 font-normal">(QS. Al-Kautsar: 2)</span>
+            </span>
+        </div>
+        <div class="text-right leading-tight text-sm font-bold">
+            <div>Terima kasih atas partisipasi dan kepercayaannya.</div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script>
+const HIJRI_OVERRIDE = { day: 10, month: 'Dzulhijjah', year: 1447 };
+const MASEHI_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+function pad2 (n) { return String(n).padStart(2, '0'); }
+
+function updateClock () {
+    const now    = new Date();
+    const utcMs  = now.getTime() + now.getTimezoneOffset() * 60000;
+    const wib    = new Date(utcMs + 7 * 3600000);
+
+    // Jam
+    const H  = pad2(wib.getHours());
+    const M  = pad2(wib.getMinutes());
+    const S  = pad2(wib.getSeconds());
+    document.getElementById('dt-time').textContent = `${H}:${M}:${S} WIB`;
+
+    // Masehi
+    const d     = wib.getDate();
+    const bulan = MASEHI_MONTHS[wib.getMonth()];
+    const y     = wib.getFullYear();
+    document.getElementById('dt-masehi').textContent = `${d} ${bulan} ${y}`;
+
+    // Hijriyah
+    document.getElementById('dt-hijri').textContent = `${HIJRI_OVERRIDE.day} ${HIJRI_OVERRIDE.month} ${HIJRI_OVERRIDE.year}H`;
+}
+
+updateClock();
+setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
