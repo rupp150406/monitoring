@@ -152,6 +152,9 @@ const allRows = computed(() => {
 })
 
 // ── Pagination (dikontrol oleh activePage 1-based dari Admin) ──
+const page = payload?.page
+if (!page || page < 1 || page > 13) return
+
 const PAGE_SIZE = 6
 
 const totalPages = computed(() =>
