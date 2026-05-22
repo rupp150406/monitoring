@@ -5,135 +5,169 @@
     <main class="flex-1 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
 
       <!-- TopNavBar -->
-      <header class="bg-white dark:bg-slate-900 flex justify-between items-center w-full px-6 py-3 max-w-container-max mx-auto border-b border-slate-200 dark:border-slate-800 z-10 shrink-0 transition-colors duration-200">
-        <div class="flex items-center gap-4">
-          <h1 class="text-headline-md font-headline-md font-bold text-emerald-700 dark:text-emerald-400">Qurban Admin Panel</h1>
+      <header class="bg-white dark:bg-slate-900 flex justify-between items-center w-full px-6 py-3 border-b border-slate-200 dark:border-slate-800 z-10 shrink-0 transition-colors duration-200">
+        <div class="flex items-center gap-3">
+          <i class="fa-solid fa-moon-star text-emerald-600 dark:text-emerald-400 text-xl"></i>
+          <h1 class="text-xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight">Qurban Admin Panel</h1>
         </div>
-        <div class="flex items-center">
-          <button
-            class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            @click="toggleTheme"
-          >
-            <span class="material-symbols-outlined" :class="{ 'hidden': isDark }">dark_mode</span>
-            <span class="material-symbols-outlined" :class="{ 'hidden': !isDark }">light_mode</span>
-          </button>
-        </div>
+        <button
+          class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          @click="toggleTheme"
+        >
+          <span class="material-symbols-outlined">{{ isDark ? 'light_mode' : 'dark_mode' }}</span>
+        </button>
       </header>
 
       <!-- Scrollable Content -->
-      <div class="flex-1 overflow-y-auto p-gutter table-container">
-        <div class="max-w-container-max mx-auto space-y-gutter">
+      <div class="flex-1 overflow-y-auto p-4 md:p-6 table-container">
+        <div class="max-w-screen-2xl mx-auto space-y-4">
 
-          <!-- Live Sync State Bar -->
+          <!-- ── Remote Page Control ── -->
           <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm transition-colors duration-200">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 shrink-0">
               <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">cast</span>
-              <span class="text-data-mono font-data-mono text-emerald-700 dark:text-emerald-400 font-bold">
+              <span class="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
                 TV DISPLAY MONITOR: HALAMAN [ {{ activePage }} ]
               </span>
             </div>
-            <div class="flex gap-1 overflow-x-auto pb-1 max-w-full">
+            <div class="flex gap-1 flex-wrap justify-center">
               <button
-                v-for="p in 11"
+                v-for="p in 10"
                 :key="p"
-                class="w-8 h-8 rounded text-label-bold font-label-bold flex items-center justify-center shrink-0 transition-colors duration-200"
+                class="w-9 h-9 rounded text-sm font-bold flex items-center justify-center shrink-0 transition-colors duration-200"
                 :class="p === activePage
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-emerald-600 text-white shadow'
                   : 'border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                @click="activePage = p"
+                @click="setActivePage(p)"
               >
                 {{ p }}
               </button>
             </div>
           </div>
 
-          <!-- Stat Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- ── Stat Cards ── -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div
               v-for="stat in stats"
               :key="stat.label"
               class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200"
             >
-              <div class="text-body-sm font-body-sm text-slate-500 dark:text-slate-400 mb-1">{{ stat.label }}</div>
-              <div class="text-headline-lg font-headline-lg" :class="stat.colorClass">{{ stat.value }}</div>
+              <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">{{ stat.label }}</div>
+              <div class="text-3xl font-extrabold" :class="stat.colorClass">{{ stat.value }}</div>
             </div>
           </div>
 
-          <!-- Search -->
+          <!-- ── Search ── -->
           <div class="relative">
-            <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Cari ID Grup, Nama Shohibul, atau Jenis Hewan..."
-              class="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-body-md font-body-md text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all duration-200"
+              placeholder="Cari ID Grup, Jenis Hewan, Label, atau Keterangan..."
+              class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all duration-200"
             />
           </div>
 
-          <!-- Data Table -->
-          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm transition-colors duration-200">
+          <!-- ── Loading / Empty State ── -->
+          <div v-if="!dataGrup" class="text-center py-16 text-slate-400 dark:text-slate-600">
+            <i class="fa-solid fa-spinner fa-spin text-3xl mb-3"></i>
+            <p class="text-sm">Memuat data dari Supabase...</p>
+          </div>
+          <div v-else-if="filteredRows.length === 0" class="text-center py-16 text-slate-400 dark:text-slate-600">
+            <i class="fa-solid fa-circle-xmark text-3xl mb-3"></i>
+            <p class="text-sm">Tidak ada data yang cocok dengan pencarian.</p>
+          </div>
+
+          <!-- ── Data Table ── -->
+          <div v-else class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm transition-colors duration-200">
             <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse min-w-[1000px]">
+              <table :key="tableKey" class="w-full text-left border-collapse min-w-[1100px]">
                 <thead>
                   <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 w-12 text-center">NO</th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 w-32">ID GRUP</th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 w-64">INFO HEWAN &amp; PESERTA</th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 text-center w-48">
-                      <i class="fa-solid fa-knife mr-1"></i> PENYEMBELIHAN
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 w-12 text-center">NO</th>
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 w-36">ID GRUP</th>
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 w-56">DETAIL HEWAN</th>
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-44">
+                      <i class="fa-solid fa-door-open mr-1 text-blue-500"></i>KEDATANGAN
                     </th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 text-center w-48">
-                      <i class="fa-solid fa-skin mr-1"></i> PENGAKAPAN
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-44">
+                      <i class="fa-solid fa-knife mr-1 text-green-500"></i>SEMBELIHAN
                     </th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 text-center w-48">
-                      <i class="fa-solid fa-box mr-1"></i> PENCACAHAN
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-44">
+                      <i class="fa-solid fa-scissors mr-1 text-orange-500"></i>PENGULITAN
                     </th>
-                    <th class="py-3 px-4 text-label-bold font-label-bold text-slate-500 dark:text-slate-400 text-center w-48">
-                      <i class="fa-solid fa-truck mr-1"></i> DISTRIBUSI
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-44">
+                      <i class="fa-solid fa-box mr-1 text-purple-500"></i>PENGEMASAN
                     </th>
+                    <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 w-52">KETERANGAN</th>
                   </tr>
                 </thead>
-                <tbody class="text-body-sm font-body-sm text-slate-700 dark:text-slate-300">
+                <tbody class="text-sm text-slate-700 dark:text-slate-300">
                   <tr
-                    v-for="(hewan, i) in filteredRows"
-                    :key="hewan.id_grup"
+                    v-for="(row, i) in filteredRows"
+                    :key="row.id_grup"
                     class="border-b border-slate-200 dark:border-slate-800 transition-colors duration-200"
                     :class="i % 2 === 1
-                      ? 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'"
+                      ? 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'"
                   >
-                    <td class="py-4 px-4 text-center text-data-mono font-data-mono text-slate-500 dark:text-slate-400">{{ i + 1 }}</td>
-                    <td class="py-4 px-4">
-                      <div class="inline-flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2 py-1 rounded text-label-bold font-label-bold transition-colors duration-200">
-                        {{ hewan.id_grup }}
+                    <!-- No -->
+                    <td class="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500 text-xs">{{ i + 1 }}</td>
+
+                    <!-- ID Grup -->
+                    <td class="py-3 px-4">
+                      <span class="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors duration-200">
+                        {{ row.id_grup }}
+                      </span>
+                    </td>
+
+                    <!-- Detail Hewan -->
+                    <td class="py-3 px-4">
+                      <div class="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100 capitalize transition-colors duration-200">
+                        <i :class="['fa-solid', animalIconClass(row.jenis_hewan)]"></i>
+                        {{ row.jenis_hewan }}
+                      </div>
+                      <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 transition-colors duration-200">
+                        {{ row.label_tampilan }}
                       </div>
                     </td>
-                    <td class="py-4 px-4">
-                      <div class="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2 transition-colors duration-200">
-                        <i :class="['fa-solid', hewan.jenis_hewan === 'sapi' ? 'fa-cow' : 'fa-sheep', hewan.jenis_hewan === 'sapi' ? 'text-emerald-600 dark:text-emerald-500' : 'text-status-pending']"></i>
-                        {{ hewan.nama_grup }}
-                      </div>
-                      <div class="text-[11px] text-slate-500 dark:text-slate-400 leading-tight transition-colors duration-200">
-                        {{ hewan.peserta }}
-                      </div>
-                    </td>
-                    <!-- Status columns -->
-                    <td v-for="(statusKey, si) in ['status_sembelihan', 'status_pengulitan', 'status_pencacahan', 'status_distribusi']" :key="si" class="py-4 px-2">
-                      <div class="flex justify-center bg-slate-100 dark:bg-slate-950 rounded-lg p-1 w-fit mx-auto border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+
+                    <!-- Status Buttons: 4 kolom -->
+                    <td
+                      v-for="kolom in STATUS_COLUMNS"
+                      :key="kolom.field"
+                      class="py-3 px-2"
+                    >
+                      <div class="flex justify-center bg-slate-100 dark:bg-slate-950 rounded-lg p-1 w-fit mx-auto border border-slate-200 dark:border-slate-800 gap-1 transition-colors duration-200">
                         <button
-                          v-for="opt in ['belum', 'proses', 'selesai']"
+                          v-for="opt in STATUS_OPTIONS"
                           :key="opt"
-                          class="status-btn px-2 py-1 text-[11px] rounded-md"
-                          :class="[opt, { active: hewan[statusKey] === opt }, opt !== 'belum' ? 'mx-1' : '']"
-                          @click="updateStatus(hewan.id_grup, statusKey, opt)"
+                          class="status-btn px-2.5 py-1 text-[11px] rounded-md"
+                          :class="[opt.toLowerCase(), { active: row[kolom.field] === opt }]"
+                          @click="updateStatus(row.id_grup, kolom.field, opt)"
                         >
-                          {{ opt.charAt(0).toUpperCase() + opt.slice(1) }}
+                          {{ opt }}
                         </button>
                       </div>
+                    </td>
+
+                    <!-- Keterangan (live-save on blur/enter) -->
+                    <td class="py-3 px-4">
+                      <input
+                        type="text"
+                        :value="row.keterangan"
+                        placeholder="Catatan..."
+                        class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all duration-200"
+                        @change="updateKeterangan(row.id_grup, $event.target.value)"
+                      />
                     </td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <!-- Footer count -->
+            <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-600 text-right transition-colors duration-200">
+              Menampilkan {{ filteredRows.length }} dari {{ dataGrup?.length ?? 0 }} grup
             </div>
           </div>
 
@@ -144,33 +178,30 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+
 const supabase = useSupabaseClient()
+
 useHead({
-  title: 'Qurban Workflow Admin',
+  title: 'Qurban Admin Panel',
   link: [
-    {
-      rel: 'stylesheet',
-      href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-    },
-    {
-      rel: 'stylesheet',
-      href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap',
-    },
-    {
-      rel: 'stylesheet',
-      href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-    },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
+    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' },
   ],
 })
 
-// ── Dark mode ──
-const isDark = ref(false)
+// ── Konstanta ──
+const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
+const STATUS_COLUMNS = [
+  { field: 'status_kedatangan',  label: 'Kedatangan'  },
+  { field: 'status_sembelihan',  label: 'Sembelihan'  },
+  { field: 'status_pengulitan',  label: 'Pengulitan'  },
+  { field: 'status_pengemasan',  label: 'Pengemasan'  },
+]
 
-onMounted(() => {
-  const saved = localStorage.getItem('color-theme')
-  isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', isDark.value)
-})
+// ── Dark Mode ──
+const isDark = ref(false)
 
 function toggleTheme() {
   isDark.value = !isDark.value
@@ -178,46 +209,135 @@ function toggleTheme() {
   localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
 }
 
-// ── Page selector ──
+// ── Remote Page Control ──
 const activePage = ref(1)
 
-// ── Stats ──
-const stats = [
-  { label: 'Total Hewan',         value: 124, colorClass: 'text-emerald-700 dark:text-emerald-400' },
-  { label: 'Sembelihan Selesai',  value: 89,  colorClass: 'text-status-completed' },
-  { label: 'Proses Pencacahan',   value: 15,  colorClass: 'text-status-pending' },
-  { label: 'Menunggu',            value: 20,  colorClass: 'text-status-unpaid' },
-]
+function setActivePage(p) {
+  activePage.value = p
+  // Simpan ke localStorage agar monitor TV tersinkronisasi saat di-refresh
+  localStorage.setItem('qurban_current_page', (p - 1).toString())
+}
 
-const { data: dataGrup, refresh } = useAsyncData('grup_hewan', async () => {
+// ── Fetch Data ──
+const tableKey = ref(0)
+const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
   const { data, error } = await supabase
     .from('grup_hewan')
     .select('*')
     .order('id_grup', { ascending: true })
-  if (error) console.error(error)
-  return data
+  if (error) { console.error('Supabase fetch error:', error); return [] }
+  return data ?? []
+})
+
+// ── Realtime Listener ──
+let realtimeChannel = null
+
+onMounted(() => {
+  // Pemulihan tema dark mode
+  const saved = localStorage.getItem('color-theme')
+  isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.classList.toggle('dark', isDark.value)
+
+  // Perbaikan Realtime Listener Supabase
+  realtimeChannel = supabase
+    .channel('admin-grup-hewan-changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'grup_hewan' },
+      (payload) => {
+        console.log('Admin mendeteksi perubahan:', payload)
+        refresh().then(() => {
+          tableKey.value++ // Memaksa table component me-refresh render secara instan di UI
+        })
+      }
+    )
+    .subscribe((status) => {
+      console.log('Status koneksi realtime:', status)
+    })
+})
+
+onUnmounted(() => {
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel)
+  }
 })
 
 // ── Search ──
 const searchQuery = ref('')
+
 const filteredRows = computed(() => {
-  if (!searchQuery.value) return tableRows
-  const q = searchQuery.value.toLowerCase()
-  return tableRows.filter(r =>
-    r.id.toLowerCase().includes(q) ||
-    r.name.toLowerCase().includes(q) ||
-    r.participants.toLowerCase().includes(q)
+  if (!dataGrup.value) return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return dataGrup.value
+  return dataGrup.value.filter(r =>
+    r.id_grup?.toLowerCase().includes(q)         ||
+    r.jenis_hewan?.toLowerCase().includes(q)     ||
+    r.label_tampilan?.toLowerCase().includes(q)  ||
+    r.keterangan?.toLowerCase().includes(q)
   )
 })
 
-// ── Status update ──
+// ── Stat Cards (reaktif dari dataGrup) ──
+const stats = computed(() => {
+  const list = dataGrup.value ?? []
+  const total    = list.length
+  const selesai  = list.filter(r => r.status_pengemasan === 'Selesai').length
+  const proses   = list.filter(r =>
+    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].some(s => s === 'Proses')
+    && r.status_pengemasan !== 'Selesai'
+  ).length
+  const belum    = list.filter(r =>
+    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].every(s => s === 'Belum')
+  ).length
+  return [
+    { label: 'Total Hewan',        value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'    },
+    { label: 'Sedang Diproses',    value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'    },
+    { label: 'Belum Mulai',        value: belum,   colorClass: 'text-red-500 dark:text-red-400'        },
+  ]
+})
+
+// ── Icon Hewan ──
+function animalIconClass(jenis) {
+  const j = jenis?.toLowerCase()
+  if (j === 'sapi')    return 'fa-cow text-emerald-600'
+  if (j === 'kambing') return 'fa-horse-head text-amber-600'
+  return 'fa-sheep text-indigo-500' // domba
+}
+
+// ── Update Status ──
 async function updateStatus(idGrup, kolom, statusBaru) {
+  // Optimistic update agar UI terasa instan
+  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
+  if (row) row[kolom] = statusBaru
+
   const { error } = await supabase
     .from('grup_hewan')
     .update({ [kolom]: statusBaru })
     .eq('id_grup', idGrup)
-  if (error) console.error(error)
-  else refresh()
+  if (error) {
+    console.error('updateStatus error:', error)
+    refresh().then(() => { tableKey.value++ })
+  } else {
+    refresh().then(() => { tableKey.value++ })
+  }
+}
+
+// ── Update Keterangan (live-save on change/blur) ──
+async function updateKeterangan(idGrup, teksBaru) {
+  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
+  if (row) row.keterangan = teksBaru
+
+  const { error } = await supabase
+    .from('grup_hewan')
+    .update({ keterangan: teksBaru })
+    .eq('id_grup', idGrup)
+  if (error) {
+    console.error('updateKeterangan error:', error)
+    refresh().then(() => { tableKey.value++ })
+  } else {
+    refresh().then(() => { tableKey.value++ })
+  }
 }
 </script>
 
@@ -226,32 +346,37 @@ async function updateStatus(idGrup, kolom, statusBaru) {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-.table-container::-webkit-scrollbar { width: 8px; height: 8px; }
-.table-container::-webkit-scrollbar-track { background: #334155; }
-.table-container::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+/* Scrollbar */
+.table-container::-webkit-scrollbar         { width: 8px; height: 8px; }
+.table-container::-webkit-scrollbar-track   { background: #334155; }
+.table-container::-webkit-scrollbar-thumb   { background: #475569; border-radius: 4px; }
 .table-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 :global(html:not(.dark)) .table-container::-webkit-scrollbar-track { background: #e2e8f0; }
 :global(html:not(.dark)) .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; }
 :global(html:not(.dark)) .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+/* Status Button Base */
 .status-btn {
   border: 1px solid #334155;
   background-color: transparent;
   color: #94A3B8;
-  transition: all 0.2s ease;
   cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 500;
 }
 :global(html:not(.dark)) .status-btn {
-  border: 1px solid #cbd5e1;
+  border-color: #cbd5e1;
   color: #64748b;
 }
 
-.status-btn.belum.active  { background-color: rgba(239, 68, 68, 0.2); color: #FCA5A5; border-color: #EF4444; font-weight: 600; }
-.status-btn.proses.active { background-color: rgba(217, 119, 6, 0.2); color: #FCD34D; border-color: #D97706; font-weight: 600; }
-.status-btn.selesai.active{ background-color: rgba(22, 163, 74, 0.2); color: #86EFAC; border-color: #16A34A; font-weight: 600; }
+/* Active states — dark */
+.status-btn.belum.active   { background-color: rgba(239, 68, 68, 0.2);  color: #FCA5A5; border-color: #EF4444; font-weight: 700; }
+.status-btn.proses.active  { background-color: rgba(217, 119, 6, 0.2);  color: #FCD34D; border-color: #D97706; font-weight: 700; }
+.status-btn.selesai.active { background-color: rgba(22, 163, 74, 0.2);  color: #86EFAC; border-color: #16A34A; font-weight: 700; }
 
-:global(html:not(.dark)) .status-btn.belum.active  { background-color: rgba(239, 68, 68, 0.1); color: #DC2626; border-color: #EF4444; }
-:global(html:not(.dark)) .status-btn.proses.active { background-color: rgba(217, 119, 6, 0.1); color: #D97706; border-color: #D97706; }
-:global(html:not(.dark)) .status-btn.selesai.active{ background-color: rgba(22, 163, 74, 0.1); color: #16A34A; border-color: #16A34A; }
+/* Active states — light */
+:global(html:not(.dark)) .status-btn.belum.active   { background-color: rgba(239, 68, 68, 0.1);  color: #DC2626; border-color: #EF4444; }
+:global(html:not(.dark)) .status-btn.proses.active  { background-color: rgba(217, 119, 6, 0.1);  color: #D97706; border-color: #D97706; }
+:global(html:not(.dark)) .status-btn.selesai.active { background-color: rgba(22, 163, 74, 0.1);  color: #16A34A; border-color: #16A34A; }
 </style>

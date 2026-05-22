@@ -43,6 +43,7 @@ const { data: rawData, refresh } = await useAsyncData('qurban-list', async () =>
       grup_hewan (
         id_grup,
         label_tampilan,
+        keterangan,
         status_kedatangan,
         status_sembelihan,
         status_pengulitan,
@@ -61,6 +62,15 @@ let clockInterval   = null
 let carouselInterval = null
 
 onMounted(() => {
+  // Pulihkan halaman terakhir dari localStorage (aman dari SSR karena di dalam onMounted)
+  const savedPage = localStorage.getItem('qurban_current_page')
+  if (savedPage !== null) {
+    const pageIdx = parseInt(savedPage, 10)
+    if (!isNaN(pageIdx) && pageIdx < totalPages.value) {
+      currentPage.value = pageIdx
+    }
+  }
+
   // Clock
   updateClock()
   clockInterval = setInterval(updateClock, 1000)
@@ -75,9 +85,10 @@ onMounted(() => {
     )
     .subscribe()
 
-  // Carousel
+  // Carousel - simpan halaman baru ke localStorage setiap kali berpindah
   carouselInterval = setInterval(() => {
     currentPage.value = (currentPage.value + 1) % totalPages.value
+    localStorage.setItem('qurban_current_page', currentPage.value.toString())
   }, 6000)
 })
 
@@ -108,6 +119,7 @@ const allRows = computed(() => {
     s2:         item.grup_hewan?.status_sembelihan ?? 'Belum',
     s3:         item.grup_hewan?.status_pengulitan ?? 'Belum',
     s4:         item.grup_hewan?.status_pengemasan ?? 'Belum',
+    notes:      item.grup_hewan?.keterangan ?? '—',
   }))
 })
 
@@ -359,13 +371,14 @@ function statusIcon(status) {
       <div class="flex-grow px-6 py-1 overflow-hidden flex flex-col bg-white" style="height: calc(100vh - 450px); min-height: 0;">
         <table class="w-full qurban-table table-fixed h-full">
           <colgroup>
-            <col style="width:5%"  />
+            <col style="width:4%"  />
+            <col style="width:10%" />
+            <col style="width:12%" />
+            <col style="width:18%" />
             <col style="width:11%" />
-            <col style="width:15%" />
-            <col style="width:21%" />
-            <col style="width:12%" />
-            <col style="width:12%" />
-            <col style="width:12%" />
+            <col style="width:11%" />
+            <col style="width:11%" />
+            <col style="width:11%" />
             <col style="width:12%" />
           </colgroup>
           <thead>
@@ -378,6 +391,7 @@ function statusIcon(status) {
               <th class="bg-step-green">2. SEMBELIHAN</th>
               <th class="bg-step-orange">3. PENGULITAN</th>
               <th class="bg-step-purple">4. PENGEMASAN</th>
+              <th class="bg-slate-700">KETERANGAN</th>
             </tr>
           </thead>
           <tbody>
@@ -434,6 +448,11 @@ function statusIcon(status) {
                   <span :class="['px-3 py-1.5 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s4)]">
                     <i :class="statusIcon(row.s4)"></i>{{ row.s4 }}
                   </span>
+                </div>
+              </td>
+              <td class="text-left px-3 text-slate-600 font-semibold truncate">
+                <div class="animate-text-reveal w-full truncate text-sm italic">
+                  {{ row.notes }}
                 </div>
               </td>
             </tr>
@@ -740,12 +759,11 @@ html, body {
   font-size: 1.25rem;
 }
 
-/* ── SINKRONISASI SHIMMER REVEAL EFFECT ── */
+/* ── SINKRONISASI SHIMMER REVEAL EFFECT (SLOW MOTION REVEAL) ── */
 .animate-shimmer {
   position: relative;
 }
-
-/* Layer kilauan cahaya menyapu cepat (0.5 detik) */
+/* Layer kilauan cahaya dibuat lebih lambat (1.2 detik) dengan transisi kurva yang smooth */
 .animate-shimmer::after {
   content: "";
   position: absolute;
@@ -754,28 +772,32 @@ html, body {
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.5) 30%,
-    rgba(255, 255, 255, 0.8) 60%,
+    rgba(255, 255, 255, 0.4) 25%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.4) 75%,
     rgba(255, 255, 255, 0) 100%
   );
-  animation: shimmerSweep 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: shimmerSweep 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
   pointer-events: none;
   z-index: 5;
 }
-
-/* Teks ditahan dulu, lalu memudar muncul tepat saat kilauan di tengah jalan (delay 0.15s) */
+/* Teks ditahan lebih lama (delay 0.4s) lalu memudar muncul secara perlahan mengikuti arah sapuan cahaya */
 .animate-text-reveal {
   opacity: 0;
-  animation: textReveal 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+  animation: textReveal 0.9s cubic-bezier(0.25, 1, 0.5, 1) 0.6s forwards;
 }
-
 @keyframes shimmerSweep {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-
 @keyframes textReveal {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% { 
+    opacity: 0;
+    filter: blur(2px); /* Memberi efek soft focus tipis saat teks mulai terungkap */
+  }
+  100% { 
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 </style>
