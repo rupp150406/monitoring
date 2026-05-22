@@ -48,7 +48,7 @@
                 title="Paksa semua layar TV Monitor reload sekarang"
               >
                 <i class="fa-solid fa-rotate text-sm"></i>
-                <span>Force Reload TV</span>
+                <span>Reload Layar TV</span>
               </button>
 
               <!-- ── Auto Switch Countdown Display ── -->

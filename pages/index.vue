@@ -585,7 +585,7 @@ function statusIcon(status) {
         <!-- Kanan: Keterangan Status + Info Halaman -->
         <div class="w-1/5 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
           <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">KETERANGAN STATUS</div>
-          <div class="p-4 flex flex-col gap-5 justify-center h-full">
+          <div class="p-4 flex flex-col gap-4 justify-center h-full">
             <div class="flex items-center gap-4">
               <i class="fas fa-check-circle text-3xl text-qurban-green shrink-0"></i>
               <span class="font-bold text-slate-700 text-lg">Selesai</span>
