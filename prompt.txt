@@ -1,0 +1,29 @@
+Claude, kita akan menyederhanakan arsitektur sinkronisasi halaman secara radikal. Kita membatalkan skenario "Two-Way Sync". Sekarang, KENDALI PENUH PINDAH HALAMAN (Interval 6 Detik) DIKONTROL OLEH MASTER ADMIN (`pages/admin.vue`). TV Monitor (`pages/index.vue`) hanya pasif menerima instruksi halaman dari Admin via Supabase Broadcast Channel 'page-sync'.
+Tolong rombak total kedua file dengan spesifikasi teknis berikut:
+TUGAS 1: Implementasi Master Interval & Progress Counter di `pages/admin.vue`
+1. Di dalam <script setup> `admin.vue`, buat logika interval 6 detik untuk otomatis memindahkan `activePage.value` dari halaman 1 sampai 10 secara sirkular.
+2. Buat state reactive `const countdown = ref(6)` untuk menghitung mundur dari 6 ke 0. Setiap kali menyentuh angka 0, `activePage.value` maju ke halaman berikutnya, memancarkan broadcast ke TV Monitor, dan `countdown` di-reset ke 6.
+3. Jika Admin sengaja mengklik angka halaman secara manual melalui fungsi `setActivePage(p)`, paksa `activePage.value = p`, pancarkan langsung broadcast ke TV Monitor, dan RESET `countdown.value = 6` agar hitungan mundur mengulang bersih dari awal.
+4. Di dalam Template `admin.vue`, tampilkan visual counter display (bisa berupa teks kecil berkedip atau progress bar mini) tepat di dekat deretan button pagination agar admin tahu kapan halaman akan otomatis berpindah. Contoh elemen template:
+   <div class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mr-2">
+     <i class="fa-solid fa-clock-rotate-left text-emerald-500 animate-spin" style="animation-duration: 6s;"></i>
+     <span>Auto Switch: {{ countdown }}s</span>
+   </div>
+Pancarkan event lewat channel tunggal:
+supabase.channel('page-sync').send({
+  type: 'broadcast',
+  event: 'master-page-change',
+  payload: { page: p }
+})
+TUGAS 2: Amankan Query Relasi & Logika Ekspor Excel di `pages/admin.vue`
+- Pastikan query fetch Supabase kamu di `admin.vue` tetap menggunakan format lengkap `.select('*, sohibul_qurban(*)')`.
+- Pastikan fungsi `exportToExcel` tetap memetakan data daftar individu murni dari tabel anak `sohibul_qurban` dengan aturan kolom yang tepat, urutan yang pas, serta logika Label Grup khusus: jika jenis 'Sapi' tampilkan label grupnya, jika 'Domba' / 'Kambing' di-strip '-'.
+TUGAS 3: Menerima Halaman & Pemicu Shimmering Effect di `pages/index.vue`
+1. Di `pages/index.vue`, hapus seluruh timer interval 6 detik bawaan lokal karena sekarang diatur oleh Admin.
+2. Buat state reactive `const activePage = ref(1)` dan buat state trigger animasi `const isShimmering = ref(false)`.
+3. Dengarkan event 'master-page-change' dari broadcast Supabase. Ketika data diterima:
+   - Nyalakan efek kilauan: `isShimmering.value = true`
+   - Ubah halaman data: `activePage.value = payload.payload.page`
+   - Matikan efek shimmer secara perlahan setelah beberapa saat (misal 800ms) dengan `setTimeout(() => { isShimmering.value = false }, 800)` agar baris tabel memudar dan berkilau mewah saat berganti teks data.
+4. Pastikan class CSS `.animate-shimmer` di bagian bawah <style> diaktifkan secara dinamis pada elemen tbody atau pembungkus baris tabel (`:class="{ 'animate-shimmer': isShimmering }"`) agar perpindahan data tidak sekadar basic teks switching yang kaku.
+Tolong muntahkan isi KODE UTUH, LENGKAP, DAN JELAS untuk file `pages/admin.vue` dan `pages/index.vue` agar arsitektur Master Driver ini langsung berjalan sempurna dan sinkron seketika!

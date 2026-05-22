@@ -30,34 +30,9 @@
                 TV DISPLAY MONITOR: HALAMAN [ {{ activePage }} ]
               </span>
             </div>
-            <div class="flex gap-1 flex-wrap justify-center items-center">
-
-              <!-- ── Export & Print Actions ── -->
+            <div class="flex gap-1 flex-wrap justify-center">
               <button
-                @click="exportToExcel()"
-                class="h-9 px-3 mr-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold rounded flex items-center gap-1.5 transition-all duration-200 shadow-sm focus:outline-none"
-                title="Export to Excel"
-              >
-                <i class="fa-solid fa-file-excel text-sm"></i>
-                <span>Excel</span>
-              </button>
-
-              <!-- ── Auto Switch Countdown Display ── -->
-              <div class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mr-2">
-                <i class="fa-solid fa-clock-rotate-left text-emerald-500 animate-spin" style="animation-duration: 6s;"></i>
-                <span>Auto Switch: {{ countdown }}s</span>
-                <!-- Mini progress bar -->
-                <div class="w-14 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    class="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-linear"
-                    :style="{ width: ((AUTO_INTERVAL - countdown) / AUTO_INTERVAL * 100) + '%' }"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- ── Page Number Buttons ── -->
-              <button
-                v-for="p in TOTAL_PAGES"
+                v-for="p in 10"
                 :key="p"
                 class="w-9 h-9 rounded text-sm font-bold flex items-center justify-center shrink-0 transition-colors duration-200"
                 :class="p === activePage
@@ -169,14 +144,14 @@
                           :key="opt"
                           class="status-btn px-2.5 py-1 text-[11px] rounded-md"
                           :class="[opt.toLowerCase(), { active: row[kolom.field] === opt }]"
-                          @click="handleStatusClick($event, row.id_grup, kolom.field, opt)"
+                          @click="updateStatus(row.id_grup, kolom.field, opt)"
                         >
                           {{ opt }}
                         </button>
                       </div>
                     </td>
 
-                    <!-- Keterangan (live-save on change) -->
+                    <!-- Keterangan (live-save on blur/enter) -->
                     <td class="py-3 px-4">
                       <input
                         type="text"
@@ -204,7 +179,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import * as XLSX from 'xlsx'
 
 const supabase = useSupabaseClient()
 
@@ -220,13 +194,11 @@ useHead({
 // ── Konstanta ──
 const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
 const STATUS_COLUMNS = [
-  { field: 'status_kedatangan', label: 'Kedatangan' },
-  { field: 'status_sembelihan', label: 'Sembelihan' },
-  { field: 'status_pengulitan', label: 'Pengulitan' },
-  { field: 'status_pengemasan', label: 'Pengemasan' },
+  { field: 'status_kedatangan',  label: 'Kedatangan'  },
+  { field: 'status_sembelihan',  label: 'Sembelihan'  },
+  { field: 'status_pengulitan',  label: 'Pengulitan'  },
+  { field: 'status_pengemasan',  label: 'Pengemasan'  },
 ]
-const TOTAL_PAGES   = 10
-const AUTO_INTERVAL = 6   // detik
 
 // ── Dark Mode ──
 const isDark = ref(false)
@@ -237,51 +209,13 @@ function toggleTheme() {
   localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
 }
 
-// ══════════════════════════════════════════════════════
-// MASTER REMOTE PAGE CONTROL
-//
-// Arsitektur satu-arah:
-//   Admin (Master) → broadcast → TV Monitor (Client)
-//
-// pageSyncChannel dibuat SATU kali di top-level agar
-// .send() bisa dipanggil kapan saja setelah .subscribe().
-// ══════════════════════════════════════════════════════
-const activePage     = ref(1)
-const countdown      = ref(AUTO_INTERVAL)
-let   masterTimer    = null
-const pageSyncChannel = supabase.channel('page-sync')
+// ── Remote Page Control ──
+const activePage = ref(1)
 
-// Kirim nomor halaman ke TV Monitor via Supabase Broadcast
-function broadcastPage(page) {
-  pageSyncChannel.send({
-    type:    'broadcast',
-    event:   'master-page-change',
-    payload: { page },
-  })
-}
-
-// Klik manual tombol halaman → pindah + reset countdown + broadcast
 function setActivePage(p) {
   activePage.value = p
-  countdown.value  = AUTO_INTERVAL   // reset agar hitungan mundur dari 6 lagi
-  broadcastPage(p)
-}
-
-// ── Master Interval: hitung mundur 1 detik, broadcast tiap 6 detik ──
-function startMasterInterval() {
-  if (masterTimer) return
-  masterTimer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) {
-      activePage.value = (activePage.value % TOTAL_PAGES) + 1
-      broadcastPage(activePage.value)
-      countdown.value = AUTO_INTERVAL
-    }
-  }, 1000)
-}
-
-function stopMasterInterval() {
-  if (masterTimer) { clearInterval(masterTimer); masterTimer = null }
+  // Simpan ke localStorage agar monitor TV tersinkronisasi saat di-refresh
+  localStorage.setItem('qurban_current_page', (p - 1).toString())
 }
 
 // ── Fetch Data ──
@@ -289,49 +223,43 @@ const tableKey = ref(0)
 const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
   const { data, error } = await supabase
     .from('grup_hewan')
-    .select('*, sohibul_qurban(*)')
+    .select('*')
     .order('id_grup', { ascending: true })
   if (error) { console.error('Supabase fetch error:', error); return [] }
   return data ?? []
 })
 
-// ── Realtime & Lifecycle ──
+// ── Realtime Listener ──
 let realtimeChannel = null
 
 onMounted(() => {
-  // Pulihkan tema
+  // Pemulihan tema dark mode
   const saved = localStorage.getItem('color-theme')
   isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', isDark.value)
 
-  // Subscribe channel broadcast SEBELUM memanggil .send()
-  // Tanpa subscribe(), Supabase menolak semua .send() calls.
-  pageSyncChannel.subscribe((status) => {
-    console.log('[Admin] pageSyncChannel status:', status)
-    // Mulai interval otomatis hanya setelah channel siap
-    if (status === 'SUBSCRIBED') startMasterInterval()
-  })
-
-  // Realtime Postgres: refresh tabel saat ada perubahan di DB
+  // Perbaikan Realtime Listener Supabase
   realtimeChannel = supabase
     .channel('admin-grup-hewan-changes')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'grup_hewan' },
       (payload) => {
-        console.log('[Admin] DB change:', payload)
-        refresh().then(() => { tableKey.value++ })
+        console.log('Admin mendeteksi perubahan:', payload)
+        refresh().then(() => {
+          tableKey.value++ // Memaksa table component me-refresh render secara instan di UI
+        })
       }
     )
     .subscribe((status) => {
-      console.log('[Admin] realtimeChannel status:', status)
+      console.log('Status koneksi realtime:', status)
     })
 })
 
 onUnmounted(() => {
-  stopMasterInterval()
-  if (realtimeChannel) supabase.removeChannel(realtimeChannel)
-  supabase.removeChannel(pageSyncChannel)
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel)
+  }
 })
 
 // ── Search ──
@@ -342,58 +270,44 @@ const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return dataGrup.value
   return dataGrup.value.filter(r =>
-    r.id_grup?.toLowerCase().includes(q)        ||
-    r.jenis_hewan?.toLowerCase().includes(q)    ||
-    r.label_tampilan?.toLowerCase().includes(q) ||
+    r.id_grup?.toLowerCase().includes(q)         ||
+    r.jenis_hewan?.toLowerCase().includes(q)     ||
+    r.label_tampilan?.toLowerCase().includes(q)  ||
     r.keterangan?.toLowerCase().includes(q)
   )
 })
 
-// ── Stat Cards ──
+// ── Stat Cards (reaktif dari dataGrup) ──
 const stats = computed(() => {
-  const list    = dataGrup.value ?? []
-  const total   = list.length
-  const selesai = list.filter(r => r.status_pengemasan === 'Selesai').length
-  const proses  = list.filter(r =>
+  const list = dataGrup.value ?? []
+  const total    = list.length
+  const selesai  = list.filter(r => r.status_pengemasan === 'Selesai').length
+  const proses   = list.filter(r =>
     [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].some(s => s === 'Proses')
     && r.status_pengemasan !== 'Selesai'
   ).length
-  const belum   = list.filter(r =>
+  const belum    = list.filter(r =>
     [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].every(s => s === 'Belum')
   ).length
   return [
-    { label: 'Total Hewan',         value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'     },
-    { label: 'Sedang Diproses',     value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'     },
-    { label: 'Belum Mulai',         value: belum,   colorClass: 'text-red-500 dark:text-red-400'         },
+    { label: 'Total Hewan',        value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'    },
+    { label: 'Sedang Diproses',    value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'    },
+    { label: 'Belum Mulai',        value: belum,   colorClass: 'text-red-500 dark:text-red-400'        },
   ]
 })
 
 // ── Icon Hewan ──
 function animalIconClass(jenis) {
-  const j = String(jenis ?? '').toLowerCase()
+  const j = jenis?.toLowerCase()
   if (j === 'sapi')    return 'fa-cow text-emerald-600'
   if (j === 'kambing') return 'fa-horse-head text-amber-600'
-  return 'fa-sheep text-indigo-500'
-}
-
-// ── Status Button Ripple + Update ──
-function handleStatusClick(event, idGrup, kolom, statusBaru) {
-  const btn    = event.currentTarget
-  const ripple = document.createElement('span')
-  ripple.classList.add('btn-ripple')
-  const rect = btn.getBoundingClientRect()
-  const size = Math.max(rect.width, rect.height)
-  ripple.style.width  = ripple.style.height = size + 'px'
-  ripple.style.left   = (event.clientX - rect.left - size / 2) + 'px'
-  ripple.style.top    = (event.clientY - rect.top  - size / 2) + 'px'
-  btn.appendChild(ripple)
-  ripple.addEventListener('animationend', () => ripple.remove())
-  updateStatus(idGrup, kolom, statusBaru)
+  return 'fa-sheep text-indigo-500' // domba
 }
 
 // ── Update Status ──
 async function updateStatus(idGrup, kolom, statusBaru) {
+  // Optimistic update agar UI terasa instan
   const row = dataGrup.value?.find(r => r.id_grup === idGrup)
   if (row) row[kolom] = statusBaru
 
@@ -409,7 +323,7 @@ async function updateStatus(idGrup, kolom, statusBaru) {
   }
 }
 
-// ── Update Keterangan ──
+// ── Update Keterangan (live-save on change/blur) ──
 async function updateKeterangan(idGrup, teksBaru) {
   const row = dataGrup.value?.find(r => r.id_grup === idGrup)
   if (row) row.keterangan = teksBaru
@@ -425,53 +339,6 @@ async function updateKeterangan(idGrup, teksBaru) {
     refresh().then(() => { tableKey.value++ })
   }
 }
-
-// ── Export to Excel ──
-function exportToExcel() {
-  const shohibulRows = []
-  let noUrut = 1
-
-  filteredRows.value.forEach(grup => {
-    const labelGrupValue = (grup.jenis_hewan?.toLowerCase() === 'sapi') ? (grup.label_tampilan ?? '-') : '-'
-
-    if (grup.sohibul_qurban?.length > 0) {
-      grup.sohibul_qurban.forEach(shohibul => {
-        shohibulRows.push({
-          'No'                    : noUrut++,
-          'Nama Shohibul Qurban'  : shohibul.nama             || '—',
-          'ID Hewan'              : grup.id_grup,
-          'Jenis Hewan'           : grup.jenis_hewan,
-          'Label Grup'            : labelGrupValue,
-          'Status Kedatangan'     : grup.status_kedatangan    || 'Belum',
-          'Status Sembelih'       : grup.status_sembelihan    || 'Belum',
-          'Status Pengulitan'     : grup.status_pengulitan    || 'Belum',
-          'Status Pengemasan'     : grup.status_pengemasan    || 'Belum',
-          'Keterangan'            : grup.keterangan           || '-',
-        })
-      })
-    } else {
-      shohibulRows.push({
-        'No'                    : noUrut++,
-        'Nama Shohibul Qurban'  : '(Belum Ada Anggota)',
-        'ID Hewan'              : grup.id_grup,
-        'Jenis Hewan'           : grup.jenis_hewan,
-        'Label Grup'            : labelGrupValue,
-        'Status Kedatangan'     : grup.status_kedatangan    || 'Belum',
-        'Status Sembelih'       : grup.status_sembelihan    || 'Belum',
-        'Status Pengulitan'     : grup.status_pengulitan    || 'Belum',
-        'Status Pengemasan'     : grup.status_pengemasan    || 'Belum',
-        'Keterangan'            : grup.keterangan           || '-',
-      })
-    }
-  })
-
-  const worksheet = XLSX.utils.json_to_sheet(shohibulRows)
-  const workbook  = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifes Shohibul Qurban')
-
-  const tglCetak = new Date().toISOString().split('T')[0]
-  XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`)
-}
 </script>
 
 <style scoped>
@@ -479,9 +346,7 @@ function exportToExcel() {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* ══════════════════════════════════════
-   SCROLLBAR
-   ══════════════════════════════════════ */
+/* Scrollbar */
 .table-container::-webkit-scrollbar         { width: 8px; height: 8px; }
 .table-container::-webkit-scrollbar-track   { background: #334155; }
 .table-container::-webkit-scrollbar-thumb   { background: #475569; border-radius: 4px; }
@@ -491,127 +356,27 @@ function exportToExcel() {
 :global(html:not(.dark)) .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; }
 :global(html:not(.dark)) .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* ══════════════════════════════════════
-   STATUS BUTTON — BASE
-   ══════════════════════════════════════ */
+/* Status Button Base */
 .status-btn {
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   border: 1px solid #334155;
   background-color: transparent;
-  color: #94a3b8;
+  color: #94A3B8;
   cursor: pointer;
+  transition: all 0.15s ease;
   font-weight: 500;
-  transition:
-    background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color     0.25s cubic-bezier(0.4, 0, 0.2, 1),
-    color            0.25s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow       0.25s cubic-bezier(0.4, 0, 0.2, 1),
-    transform        0.12s cubic-bezier(0.4, 0, 0.2, 1);
 }
 :global(html:not(.dark)) .status-btn {
   border-color: #cbd5e1;
   color: #64748b;
 }
-.status-btn:active { transform: scale(0.94); }
-.status-btn:not(.active):hover {
-  transform: translateY(-1px);
-  border-color: #64748b;
-  color: #cbd5e1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-:global(html:not(.dark)) .status-btn:not(.active):hover {
-  border-color: #94a3b8;
-  color: #475569;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
 
-/* ══════════════════════════════════════
-   RIPPLE EFFECT
-   ══════════════════════════════════════ */
-.status-btn :deep(.btn-ripple) {
-  position: absolute;
-  border-radius: 50%;
-  transform: scale(0);
-  background: rgba(255, 255, 255, 0.28);
-  pointer-events: none;
-  animation: rippleExpand 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-:global(html:not(.dark)) .status-btn :deep(.btn-ripple) { background: rgba(0, 0, 0, 0.09); }
+/* Active states — dark */
+.status-btn.belum.active   { background-color: rgba(239, 68, 68, 0.2);  color: #FCA5A5; border-color: #EF4444; font-weight: 700; }
+.status-btn.proses.active  { background-color: rgba(217, 119, 6, 0.2);  color: #FCD34D; border-color: #D97706; font-weight: 700; }
+.status-btn.selesai.active { background-color: rgba(22, 163, 74, 0.2);  color: #86EFAC; border-color: #16A34A; font-weight: 700; }
 
-@keyframes rippleExpand {
-  0%   { transform: scale(0); opacity: 1; }
-  100% { transform: scale(2.8); opacity: 0; }
-}
-
-/* ══════════════════════════════════════
-   DARK MODE — Active States
-   ══════════════════════════════════════ */
-.status-btn.belum.active {
-  background-color: #7f1d1d; color: #fca5a5; border-color: #ef4444;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.28); font-weight: 700; animation: none;
-}
-.status-btn.proses.active {
-  background-color: #78350f; color: #fcd34d; border-color: #f59e0b;
-  font-weight: 700; animation: statusPulse 2s infinite ease-in-out;
-}
-.status-btn.selesai.active {
-  background-color: #14532d; color: #86efac; border-color: #22c55e;
-  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.22); font-weight: 700; animation: none;
-}
-
-/* ══════════════════════════════════════
-   LIGHT MODE — Active States
-   ══════════════════════════════════════ */
-:global(html:not(.dark)) .status-btn.belum.active {
-  background-color: #fee2e2; color: #b91c1c; border-color: #ef4444;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.20); font-weight: 700; animation: none;
-}
-:global(html:not(.dark)) .status-btn.proses.active {
-  background-color: #fef3c7; color: #b45309; border-color: #f59e0b;
-  font-weight: 700; animation: statusPulseLite 2s infinite ease-in-out;
-}
-:global(html:not(.dark)) .status-btn.selesai.active {
-  background-color: #dcfce7; color: #15803d; border-color: #22c55e;
-  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.20); font-weight: 700; animation: none;
-}
-
-/* ══════════════════════════════════════
-   PULSE KEYFRAMES
-   ══════════════════════════════════════ */
-@keyframes statusPulse {
-  0%   { box-shadow: 0 0 0 0   rgba(245, 158, 11, 0.60); }
-  70%  { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0);    }
-  100% { box-shadow: 0 0 0 0   rgba(245, 158, 11, 0);    }
-}
-@keyframes statusPulseLite {
-  0%   { box-shadow: 0 0 0 0   rgba(180, 83, 9, 0.45); }
-  70%  { box-shadow: 0 0 0 7px rgba(180, 83, 9, 0);    }
-  100% { box-shadow: 0 0 0 0   rgba(180, 83, 9, 0);    }
-}
-
-/* ══════════════════════════════════════
-   PRINT STYLES
-   ══════════════════════════════════════ */
-@media print {
-  header,
-  .table-container > .max-w-screen-2xl > div:first-child,
-  .table-container > .max-w-screen-2xl > div:nth-child(2),
-  .table-container > .max-w-screen-2xl > div:nth-child(3)
-  { display: none !important; }
-
-  body, html { overflow: visible !important; height: auto !important; }
-  .table-container { overflow: visible !important; height: auto !important; padding: 0 !important; }
-  .max-w-screen-2xl { max-width: 100% !important; }
-
-  .status-btn.belum.active   { background-color: #fecaca !important; color: #7f1d1d !important; border-color: #ef4444 !important; animation: none !important; }
-  .status-btn.proses.active  { background-color: #fde68a !important; color: #78350f !important; border-color: #f59e0b !important; animation: none !important; }
-  .status-btn.selesai.active { background-color: #bbf7d0 !important; color: #14532d !important; border-color: #22c55e !important; animation: none !important; }
-
-  * { box-shadow: none !important; animation: none !important; transition: none !important; }
-  .border-t { display: block !important; }
-}
-</style>
+/* Active states — light */
+:global(html:not(.dark)) .status-btn.belum.active   { background-color: rgba(239, 68, 68, 0.1);  color: #DC2626; border-color: #EF4444; }
+:global(html:not(.dark)) .status-btn.proses.active  { background-color: rgba(217, 119, 6, 0.1);  color: #D97706; border-color: #D97706; }
+:global(html:not(.dark)) .status-btn.selesai.active { background-color: rgba(22, 163, 74, 0.1);  color: #16A34A; border-color: #16A34A; }
+</style

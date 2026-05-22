@@ -9,12 +9,9 @@ useHead({
   ],
 })
 
-// ── Supabase ──
-const supabase = useSupabaseClient()
-
 // ── Clock ──
 const HIJRI_OVERRIDE = { day: 10, month: 'Dzulhijjah', year: 1447 }
-const MASEHI_MONTHS  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+const MASEHI_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
 const dtMasehi = ref('—')
 const dtHijri  = ref('—')
@@ -31,7 +28,10 @@ function updateClock() {
   dtHijri.value  = `${HIJRI_OVERRIDE.day} ${HIJRI_OVERRIDE.month} ${HIJRI_OVERRIDE.year}H`
 }
 
-// ── Fetch Data Utama ──
+// ── Supabase ──
+const supabase = useSupabaseClient()
+
+// ── 1. FETCH DATA UTAMA ──
 const { data: rawData, refresh } = await useAsyncData('qurban-list', async () => {
   const { data, error } = await supabase
     .from('sohibul_qurban')
@@ -50,31 +50,34 @@ const { data: rawData, refresh } = await useAsyncData('qurban-list', async () =>
         status_pengemasan
       )
     `)
-    .order('id_grup', { ascending: true })
+    .order('id', { ascending: true })
 
   if (error) { console.error('Supabase fetch error:', error); return [] }
   return data ?? []
 })
 
-// ── State Halaman & Shimmer ──
-// activePage: 1-based, dikontrol penuh oleh Admin via broadcast.
-// TIDAK ada interval lokal — timer murni dari Admin.
-const activePage   = ref(1)
-const isShimmering = ref(false)
-let shimmerTimeout = null
-
-// ── Channels ──
+// ── 2. REALTIME STATE SYNC ──
 let realtimeChannel = null
-let monitorChannel  = null
 let clockInterval   = null
+let carouselInterval = null
 
 onMounted(() => {
+  // Pulihkan halaman terakhir dari localStorage (aman dari SSR karena di dalam onMounted)
+  const savedPage = localStorage.getItem('qurban_current_page')
+  if (savedPage !== null) {
+    const pageIdx = parseInt(savedPage, 10)
+    if (!isNaN(pageIdx) && pageIdx < totalPages.value) {
+      currentPage.value = pageIdx
+    }
+  }
+
+  // Clock
   updateClock()
   clockInterval = setInterval(updateClock, 1000)
 
-  // Postgres Realtime: refresh data saat status berubah di DB
+  // Realtime
   realtimeChannel = supabase
-    .channel('monitor-db-changes')
+    .channel('grup-hewan-changes')
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'grup_hewan' },
@@ -82,103 +85,86 @@ onMounted(() => {
     )
     .subscribe()
 
-  // Broadcast: pasif menerima instruksi halaman dari Admin Master
-  monitorChannel = supabase
-    .channel('page-sync')
-    .on('broadcast', { event: 'master-page-change' }, ({ payload }) => {
-      const page = payload?.page
-      if (!page || page < 1 || page > 10) return
-
-      // Batalkan shimmer sebelumnya jika masih aktif
-      if (shimmerTimeout) clearTimeout(shimmerTimeout)
-
-      // 1. Nyalakan efek kilauan
-      isShimmering.value = true
-
-      // 2. Ganti halaman data
-      activePage.value = page
-
-      // 3. Padamkan shimmer setelah 800ms
-      shimmerTimeout = setTimeout(() => {
-        isShimmering.value = false
-        shimmerTimeout = null
-      }, 800)
-    })
-    .subscribe()
+  // Carousel - simpan halaman baru ke localStorage setiap kali berpindah
+  carouselInterval = setInterval(() => {
+    currentPage.value = (currentPage.value + 1) % totalPages.value
+    localStorage.setItem('qurban_current_page', currentPage.value.toString())
+  }, 6000)
 })
 
 onUnmounted(() => {
-  if (clockInterval)   clearInterval(clockInterval)
-  if (shimmerTimeout)  clearTimeout(shimmerTimeout)
-  if (realtimeChannel) supabase.removeChannel(realtimeChannel)
-  if (monitorChannel)  supabase.removeChannel(monitorChannel)
+  if (clockInterval)    clearInterval(clockInterval)
+  if (carouselInterval) clearInterval(carouselInterval)
+  if (realtimeChannel)  supabase.removeChannel(realtimeChannel)
 })
 
 // ── Helper: icon hewan ──
 function animalIcon(jenis) {
-  const j = String(jenis ?? '').toLowerCase()
+  const j = jenis?.toLowerCase()
   if (j === 'sapi')    return 'fas fa-cow'
   if (j === 'kambing') return 'fas fa-horse-head'
-  return 'fas fa-sheep'
+  return 'fas fa-sheep' // domba
 }
 
 // ── Flatten ke baris tabel ──
-// idGrup selalu String — tidak pernah parseInt/Number
 const allRows = computed(() => {
-  if (!rawData.value?.length) return []
+  if (!rawData.value) return []
   return rawData.value.map(item => ({
     id:         item.id,
-    idGrup:     String(item.id_grup ?? ''),
+    idGrup:     item.id_grup ?? '—',
     animalIcon: animalIcon(item.jenis_hewan),
     animalName: item.jenis_hewan ?? '—',
-    owner:      item.nama ?? '—',
+    owner:      item.nama,
     s1:         item.grup_hewan?.status_kedatangan ?? 'Belum',
     s2:         item.grup_hewan?.status_sembelihan ?? 'Belum',
     s3:         item.grup_hewan?.status_pengulitan ?? 'Belum',
     s4:         item.grup_hewan?.status_pengemasan ?? 'Belum',
-    notes:      item.grup_hewan?.keterangan        ?? '—',
+    notes:      item.grup_hewan?.keterangan ?? '—',
   }))
 })
 
-// ── Pagination (dikontrol oleh activePage 1-based dari Admin) ──
-const PAGE_SIZE = 6
+// ── 3. PAGINATION CAROUSEL ──
+const PAGE_SIZE   = 6
+const currentPage = ref(0) // index 0-based
 
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(allRows.value.length / PAGE_SIZE))
 )
 
 const paginatedData = computed(() => {
-  const pageIndex = activePage.value - 1   // konversi ke 0-based
-  const start     = Math.max(0, pageIndex) * PAGE_SIZE
+  const start = currentPage.value * PAGE_SIZE
   return allRows.value.slice(start, start + PAGE_SIZE)
 })
 
-// ── Statistik ──
-// uniqueGrups: deduplikasi per id_grup menggunakan Set string
+// ── 4. COMPUTED COUNTER ──
+// uniqueGrups: satu entri per id_grup, bawa data grup_hewan-nya
 const uniqueGrups = computed(() => {
-  if (!rawData.value?.length) return []
-  const seen = new Set()
-  return rawData.value.filter(item => {
-    const key = String(item.id_grup ?? '').toLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
+  if (!rawData.value) return []
+  const map = new Map()
+  rawData.value.forEach(item => {
+    if (item.id_grup && !map.has(item.id_grup)) {
+      map.set(item.id_grup, item)
+    }
   })
+  return Array.from(map.values())
 })
 
-const totalHewan   = computed(() => rawData.value?.length ?? 0)
-const totalSapi    = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'sapi').length)
-const totalDomba   = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'domba').length)
-const totalKambing = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'kambing').length)
+const totalHewan   = computed(() => rawData.value.length)
+const totalSapi    = computed(() => uniqueGrups.value.filter(i => i.jenis_hewan?.toLowerCase() === 'sapi').length)
+const totalDomba   = computed(() => uniqueGrups.value.filter(i => i.jenis_hewan?.toLowerCase() === 'domba').length)
+const totalKambing = computed(() => uniqueGrups.value.filter(i => i.jenis_hewan?.toLowerCase() === 'kambing').length)
 
+// Progress per tahap
 function stageCount(field) {
-  const list    = uniqueGrups.value
-  const total   = list.length || 1
+  const list  = uniqueGrups.value
+  const total = list.length || 1
   const selesai = list.filter(i => i.grup_hewan?.[field] === 'Selesai').length
   const proses  = list.filter(i => i.grup_hewan?.[field] === 'Proses').length
   const belum   = list.filter(i => i.grup_hewan?.[field] === 'Belum').length
   return {
-    selesai, proses, belum,
+    selesai,
+    proses,
+    belum,
     pct:  Math.round((selesai / total) * 100),
     frac: `${selesai}/${list.length}`,
   }
@@ -189,23 +175,27 @@ const progSembelihan = computed(() => stageCount('status_sembelihan'))
 const progPengulitan = computed(() => stageCount('status_pengulitan'))
 const progPengemasan = computed(() => stageCount('status_pengemasan'))
 
+// Ringkasan status keseluruhan per grup
+// BUGFIX: versi lama memakai `g` yang tidak terdefinisi di summarySelesai
 const summarySelesai = computed(() =>
   uniqueGrups.value.filter(i => i.grup_hewan?.status_pengemasan === 'Selesai').length
 )
+
 const summaryProses = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return false
-    return [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
-      .some(s => s === 'Proses') && g.status_pengemasan !== 'Selesai'
+    const statuses = [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
+    return statuses.some(s => s === 'Proses') && g.status_pengemasan !== 'Selesai'
   }).length
 )
+
 const summaryBelum = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return true
-    return [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
-      .every(s => s === 'Belum')
+    const statuses = [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
+    return statuses.every(s => s === 'Belum')
   }).length
 )
 
@@ -404,20 +394,16 @@ function statusIcon(status) {
               <th class="bg-slate-700">KETERANGAN</th>
             </tr>
           </thead>
-          <!--
-            tbody: kelas animate-shimmer diaktifkan reaktif saat isShimmering = true.
-            Sinar kilauan menyapu dari kiri ke kanan bersamaan dengan data baru muncul.
-          -->
-          <tbody :class="{ 'animate-shimmer': isShimmering }">
+          <tbody>
             <tr
               v-for="(row, i) in paginatedData"
-              :key="`row-${activePage}-${row.idGrup}`"
+              :key="currentPage + '-' + row.id"
               :style="{ height: 'calc(100%/6)' }"
-              :class="[i % 2 === 1 ? 'bg-slate-100' : 'bg-white', 'relative overflow-hidden']"
+              :class="[i % 2 === 1 ? 'bg-slate-100' : 'bg-white', 'animate-shimmer relative overflow-hidden']"
             >
               <td>
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  {{ ((activePage - 1) * PAGE_SIZE) + i + 1 }}
+                  {{ (currentPage * PAGE_SIZE) + i + 1 }}
                 </div>
               </td>
               <td class="text-qurban-dark font-black">
@@ -477,7 +463,7 @@ function statusIcon(status) {
       <!-- ── BOTTOM SUMMARY ── -->
       <div class="px-6 py-3 flex gap-6 flex-shrink-0 bg-slate-50 border-t-2 border-slate-200" style="height: 300px;">
 
-        <!-- Kiri: Ringkasan Total Hewan -->
+        <!-- Kiri: Total Kelompok Hewan -->
         <div class="w-1/4 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
           <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">RINGKASAN TOTAL HEWAN</div>
           <div class="flex p-4 items-center justify-between h-full">
@@ -587,14 +573,6 @@ function statusIcon(status) {
               <i class="fas fa-times-circle text-3xl text-qurban-red shrink-0"></i>
               <span class="font-bold text-slate-700 text-lg">Belum Dimulai</span>
             </div>
-            <!-- Indikator halaman aktif -->
-            <div class="mt-2 pt-3 border-t border-slate-200 flex items-center gap-2">
-              <i class="fas fa-tv text-qurban-dark text-lg shrink-0"></i>
-              <span class="text-sm font-black text-slate-600">
-                HAL <span class="text-qurban-dark text-xl">{{ activePage }}</span>
-                <span class="text-xs text-slate-400 ml-1">/ {{ totalPages }}</span>
-              </span>
-            </div>
           </div>
         </div>
 
@@ -678,10 +656,10 @@ html, body {
   font-size: 1.45rem;
   font-weight: 800;
 }
-.status-selesai   { color: #198754; }
-.status-proses    { color: #f39c12; }
-.status-belum     { color: #dc3545; }
-.status-dibagikan { color: #20c997; }
+.status-selesai  { color: #198754; }
+.status-proses   { color: #f39c12; }
+.status-belum    { color: #dc3545; }
+.status-dibagikan{ color: #20c997; }
 
 /* ── Progress circles ── */
 .progress-circle {
@@ -704,6 +682,11 @@ html, body {
   background: white;
 }
 .progress-circle span { position: relative; z-index: 1; }
+
+.pc-blue   { background: conic-gradient(#2b78e4 83%, #e2e8f0 0); color: #2b78e4; }
+.pc-green  { background: conic-gradient(#27a844 50%, #e2e8f0 0); color: #27a844; }
+.pc-orange { background: conic-gradient(#fd7e14 33%, #e2e8f0 0); color: #fd7e14; }
+.pc-purple { background: conic-gradient(#6f42c1 17%, #e2e8f0 0); color: #6f42c1; }
 
 /* ── Step arrow ── */
 .step-card { position: relative; }
@@ -776,28 +759,11 @@ html, body {
   font-size: 1.25rem;
 }
 
-/*
-  ══════════════════════════════════════════
-  SHIMMER REVEAL EFFECT — Master/Client Sync
-  ══════════════════════════════════════════
-
-  .animate-shimmer diaktifkan pada <tbody> melalui
-  :class="{ 'animate-shimmer': isShimmering }".
-
-  Saat isShimmering = true:
-    - ::after menyapu sinar kilauan dari kiri ke kanan
-    - Setiap .animate-text-reveal di dalam <td> memunculkan
-      konten baru dengan fade + blur hilang
-
-  isShimmering dikembalikan false oleh setTimeout 800ms
-  setelah activePage diubah dari payload broadcast.
-*/
-
-/* Layer sinar yang menyapu */
+/* ── SINKRONISASI SHIMMER REVEAL EFFECT (SLOW MOTION REVEAL) ── */
 .animate-shimmer {
   position: relative;
-  overflow: hidden;
 }
+/* Layer kilauan cahaya dibuat lebih lambat (1.2 detik) dengan transisi kurva yang smooth */
 .animate-shimmer::after {
   content: "";
   position: absolute;
@@ -805,36 +771,33 @@ html, body {
   transform: translateX(-100%);
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0)   0%,
-    rgba(255, 255, 255, 0.3) 20%,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 25%,
     rgba(255, 255, 255, 0.6) 50%,
-    rgba(255, 255, 255, 0.3) 80%,
-    rgba(255, 255, 255, 0)   100%
+    rgba(255, 255, 255, 0.4) 75%,
+    rgba(255, 255, 255, 0) 100%
   );
-  animation: shimmerSweep 0.9s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation: shimmerSweep 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
   pointer-events: none;
   z-index: 5;
 }
-
-/* Teks muncul dengan delay setelah sinar lewat */
+/* Teks ditahan lebih lama (delay 0.4s) lalu memudar muncul secara perlahan mengikuti arah sapuan cahaya */
 .animate-text-reveal {
   opacity: 0;
-  animation: textReveal 0.7s cubic-bezier(0.25, 1, 0.5, 1) 0.4s forwards;
+  animation: textReveal 0.9s cubic-bezier(0.25, 1, 0.5, 1) 0.6s forwards;
 }
-
-/* Saat shimmer tidak aktif, konten harus tetap visible */
-tbody:not(.animate-shimmer) .animate-text-reveal {
-  opacity: 1;
-  animation: none;
-}
-
 @keyframes shimmerSweep {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(110%); }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
-
 @keyframes textReveal {
-  0%   { opacity: 0; transform: translateY(6px); filter: blur(3px); }
-  100% { opacity: 1; transform: translateY(0);   filter: blur(0);   }
+  0% { 
+    opacity: 0;
+    filter: blur(2px); /* Memberi efek soft focus tipis saat teks mulai terungkap */
+  }
+  100% { 
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 </style>
