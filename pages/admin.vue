@@ -42,6 +42,15 @@
                 <span>Excel</span>
               </button>
 
+              <button
+                @click="triggerRemoteReload()"
+                class="h-9 px-3 mr-3 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-xs font-bold rounded flex items-center gap-1.5 transition-all duration-200 shadow-sm focus:outline-none"
+                title="Paksa semua layar TV Monitor reload sekarang"
+              >
+                <i class="fa-solid fa-rotate text-sm"></i>
+                <span>Force Reload TV</span>
+              </button>
+
               <!-- ── Auto Switch Countdown Display ── -->
               <div class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mr-2">
                 <i class="fa-solid fa-clock-rotate-left text-emerald-500 animate-spin" style="animation-duration: 6s;"></i>
@@ -225,7 +234,7 @@ const STATUS_COLUMNS = [
   { field: 'status_pengulitan', label: 'Pengulitan' },
   { field: 'status_pengemasan', label: 'Pengemasan' },
 ]
-const TOTAL_PAGES   = 10
+const TOTAL_PAGES   = 13
 const AUTO_INTERVAL = 6   // detik
 
 // ── Dark Mode ──
@@ -249,7 +258,7 @@ function toggleTheme() {
 const activePage     = ref(1)
 const countdown      = ref(AUTO_INTERVAL)
 let   masterTimer    = null
-const pageSyncChannel = supabase.channel('page-sync')
+const pageSyncChannel = supabase.channel('monitor-channel')
 
 // Kirim nomor halaman ke TV Monitor via Supabase Broadcast
 function broadcastPage(page) {
@@ -257,6 +266,15 @@ function broadcastPage(page) {
     type:    'broadcast',
     event:   'master-page-change',
     payload: { page },
+  })
+}
+
+// Kirim sinyal force reload ke semua layar TV Monitor
+function triggerRemoteReload() {
+  pageSyncChannel.send({
+    type:    'broadcast',
+    event:   'remote-reload',
+    payload: { ts: Date.now() },
   })
 }
 

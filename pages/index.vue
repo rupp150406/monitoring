@@ -32,7 +32,11 @@ function updateClock() {
 }
 
 // ── Fetch Data Utama ──
-const { data: rawData, refresh } = await useAsyncData('qurban-list', async () => {
+// Menggunakan ref + fetchGrupHewan() agar bisa dipanggil ulang
+// kapan saja dari listener postgres_changes tanpa membungkus useAsyncData.
+const rawData = ref([])
+
+async function fetchGrupHewan() {
   const { data, error } = await supabase
     .from('sohibul_qurban')
     .select(`
@@ -52,9 +56,12 @@ const { data: rawData, refresh } = await useAsyncData('qurban-list', async () =>
     `)
     .order('id_grup', { ascending: true })
 
-  if (error) { console.error('Supabase fetch error:', error); return [] }
-  return data ?? []
-})
+  if (error) { console.error('Supabase fetch error:', error); return }
+  rawData.value = data ?? []
+}
+
+// Fetch awal saat SSR/setup (sebelum onMounted)
+await fetchGrupHewan()
 
 // ── State Halaman & Shimmer ──
 // activePage: 1-based, dikontrol penuh oleh Admin via broadcast.
@@ -63,55 +70,59 @@ const activePage   = ref(1)
 const isShimmering = ref(false)
 let shimmerTimeout = null
 
-// ── Channels ──
+// ── Channels & Timers ──
 let realtimeChannel = null
-let monitorChannel  = null
-let clockInterval   = null
+let timerClock      = null
 
 onMounted(() => {
+  fetchGrupHewan()
   updateClock()
-  clockInterval = setInterval(updateClock, 1000)
+  timerClock = setInterval(updateClock, 1000)
 
-  // Postgres Realtime: refresh data saat status berubah di DB
-  realtimeChannel = supabase
-    .channel('monitor-db-changes')
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'grup_hewan' },
-      () => refresh()
-    )
-    .subscribe()
+  // Inisialisasi Kunci Utama Realtime (Single Channel, Dual Event)
+  realtimeChannel = supabase.channel('monitor-channel')
 
-  // Broadcast: pasif menerima instruksi halaman dari Admin Master
-  monitorChannel = supabase
-    .channel('page-sync')
-    .on('broadcast', { event: 'master-page-change' }, ({ payload }) => {
-      const page = payload?.page
-      if (!page || page < 1 || page > 10) return
+    // 1. Listen sinyal pindah halaman dari Master Admin Panel
+    .on('broadcast', { event: 'master-page-change' }, (payload) => {
+      const targetPage = payload?.payload?.page ?? payload?.page
+      if (!targetPage || targetPage < 1 || targetPage > 10) return
 
-      // Batalkan shimmer sebelumnya jika masih aktif
       if (shimmerTimeout) clearTimeout(shimmerTimeout)
 
-      // 1. Nyalakan efek kilauan
       isShimmering.value = true
+      activePage.value   = targetPage
 
-      // 2. Ganti halaman data
-      activePage.value = page
-
-      // 3. Padamkan shimmer setelah 800ms
       shimmerTimeout = setTimeout(() => {
         isShimmering.value = false
         shimmerTimeout = null
       }, 800)
     })
-    .subscribe()
+
+    // 2. Listen perubahan data di database (auto fetch data terbaru)
+    .on('postgres_changes', {
+      event:  'UPDATE',
+      schema: 'public',
+      table:  'grup_hewan',
+    }, (payload) => {
+      console.log('[Monitor] DB terupdate, menarik data terbaru...', payload)
+      fetchGrupHewan()
+    })
+
+    // 3. Listen sinyal force reload dari Admin Panel
+    .on('broadcast', { event: 'remote-reload' }, () => {
+      console.log('[Monitor] Sinyal force reload diterima, memuat ulang...')
+      setTimeout(() => window.location.reload(), 300)
+    })
+
+    .subscribe((status) => {
+      console.log('[Monitor] Status koneksi Supabase Realtime:', status)
+    })
 })
 
 onUnmounted(() => {
-  if (clockInterval)   clearInterval(clockInterval)
+  if (timerClock)      clearInterval(timerClock)
   if (shimmerTimeout)  clearTimeout(shimmerTimeout)
   if (realtimeChannel) supabase.removeChannel(realtimeChannel)
-  if (monitorChannel)  supabase.removeChannel(monitorChannel)
 })
 
 // ── Helper: icon hewan ──
