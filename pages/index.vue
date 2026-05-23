@@ -419,10 +419,10 @@ function statusIcon(status) {
               <th>ID HEWAN</th>
               <th>JENIS HEWAN</th>
               <th>PEMILIK / PENYUMBANG</th>
-              <th class="bg-step-blue">1. KEDATANGAN</th>
-              <th class="bg-step-green">2. SEMBELIHAN</th>
-              <th class="bg-step-orange">3. PENGULITAN</th>
-              <th class="bg-step-purple">4. PENGEMASAN</th>
+              <th class="bg-step-blue">KEDATANGAN</th>
+              <th class="bg-step-green">SEBELIHAN</th>
+              <th class="bg-step-orange">PENGULITAN</th>
+              <th class="bg-step-purple">PENGEMASAN</th>
               <th class="bg-slate-700">KETERANGAN</th>
             </tr>
           </thead>
@@ -588,7 +588,7 @@ function statusIcon(status) {
             </div>
 
           </div>
-          <div class="absolute bottom-1 left-0 right-0 text-center text-sm italic text-slate-400 font-bold tracking-wide">
+          <div class="absolute bottom-1 left-0 right-0 text-center text-xs italic text-slate-400 font-bold tracking-wide">
             *Data akan otomatis ter-update sesuai perkembangan di lapangan, bila merasa namanya tidak ada disini bisa hubungi Tim Qurban AhsanTV
           </div>
         </div>
@@ -672,7 +672,7 @@ html, body {
   color: white;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   padding: 1vh 8px;
   border: 2px solid #1a6b52;
   text-align: center;
@@ -683,7 +683,7 @@ html, body {
   border: 2px solid #cbd5e1;
   text-align: center;
   vertical-align: middle;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: #1e293b;
   white-space: nowrap;
