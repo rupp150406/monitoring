@@ -588,7 +588,7 @@ function statusIcon(status) {
             </div>
 
           </div>
-          <div class="absolute bottom-1 left-0 right-0 text-center text-sm italic text-slate-400 font-bold tracking-wide">
+          <div class="absolute bottom-1 left-0 right-0 text-center text-md italic text-slate-400 font-bold tracking-wide">
             *Data akan otomatis ter-update sesuai perkembangan di lapangan, bila merasa namanya tidak ada disini bisa hubungi Tim Qurban AhsanTV
           </div>
         </div>
