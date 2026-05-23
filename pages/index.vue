@@ -88,7 +88,7 @@ onMounted(() => {
     // 1. Listen sinyal pindah halaman dari Master Admin Panel
     .on('broadcast', { event: 'master-page-change' }, (payload) => {
       const targetPage = payload?.payload?.page ?? payload?.page
-      if (!targetPage || targetPage < 1 || targetPage > 13) return
+      if (!targetPage || targetPage < 1 || targetPage > 14) return
 
       if (shimmerTimeout) clearTimeout(shimmerTimeout)
 
