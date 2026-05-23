@@ -66,9 +66,12 @@ await fetchGrupHewan()
 // ── State Halaman & Shimmer ──
 // activePage: 1-based, dikontrol penuh oleh Admin via broadcast.
 // TIDAK ada interval lokal — timer murni dari Admin.
-const activePage   = ref(1)
-const isShimmering = ref(false)
-let shimmerTimeout = null
+const activePage      = ref(1)
+const isShimmering    = ref(false)
+let   shimmerTimeout  = null
+
+// ── Daftar ID Grup yang disembunyikan (dikirim Admin via broadcast) ──
+const hiddenGroupIds = ref([])
 
 // ── Channels & Timers ──
 let realtimeChannel = null
@@ -114,6 +117,11 @@ onMounted(() => {
       setTimeout(() => window.location.reload(), 300)
     })
 
+    // 4. Listen daftar ID grup yang disembunyikan oleh Admin
+    .on('broadcast', { event: 'update-hidden-groups' }, (payload) => {
+      hiddenGroupIds.value = payload?.payload?.hiddenIds ?? []
+    })
+
     .subscribe((status) => {
       console.log('[Monitor] Status koneksi Supabase Realtime:', status)
     })
@@ -125,29 +133,31 @@ onUnmounted(() => {
   if (realtimeChannel) supabase.removeChannel(realtimeChannel)
 })
 
-// ── Helper: icon hewan ──
-function animalIcon(jenis) {
-  const j = String(jenis ?? '').toLowerCase()
-  if (j === 'sapi')    return 'fas fa-cow'
-  if (j === 'kambing') return 'fas fa-horse-head'
-  return 'fas fa-sheep'
-}
 
 // ── Flatten ke baris tabel ──
-// idGrup selalu String — tidak pernah parseInt/Number
+// Filter: berdasarkan daftar hiddenGroupIds yang dikirim Admin via broadcast.
+// displayIndex: nomor urut dihitung ulang dari 1 setelah filter (Dynamic Re-indexing).
 const allRows = computed(() => {
   if (!rawData.value?.length) return []
-  return rawData.value.map(item => ({
-    id:         item.id,
-    idGrup:     String(item.id_grup ?? ''),
-    animalIcon: animalIcon(item.jenis_hewan),
-    animalName: item.jenis_hewan ?? '—',
-    owner:      item.nama ?? '—',
-    s1:         item.grup_hewan?.status_kedatangan ?? 'Belum',
-    s2:         item.grup_hewan?.status_sembelihan ?? 'Belum',
-    s3:         item.grup_hewan?.status_pengulitan ?? 'Belum',
-    s4:         item.grup_hewan?.status_pengemasan ?? 'Belum',
-    notes:      item.grup_hewan?.keterangan        ?? '—',
+
+  // 1. Saring: buang ID grup yang sedang disembunyikan oleh Admin
+  const activeData = rawData.value.filter(item => {
+    const idGrupStr = String(item.id_grup ?? '')
+    return !hiddenGroupIds.value.includes(idGrupStr)
+  })
+
+  // 2. Map + re-index: displayIndex selalu 1, 2, 3... tanpa bolong
+  return activeData.map((item, index) => ({
+    displayIndex: index + 1,
+    id:           item.id,
+    idGrup:       String(item.id_grup ?? ''),
+    animalName:   item.jenis_hewan ?? '—',
+    owner:        item.nama ?? '—',
+    s1:           item.grup_hewan?.status_kedatangan ?? 'Belum',
+    s2:           item.grup_hewan?.status_sembelihan ?? 'Belum',
+    s3:           item.grup_hewan?.status_pengulitan ?? 'Belum',
+    s4:           item.grup_hewan?.status_pengemasan ?? 'Belum',
+    notes:        item.grup_hewan?.keterangan        ?? '—',
   }))
 })
 
@@ -303,7 +313,7 @@ function statusIcon(status) {
                 :style="{ width: progKedatangan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-xs font-bold mt-1', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-sm font-bold mt-1', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progKedatangan.pct }}% &nbsp;|&nbsp; {{ progKedatangan.frac }} HEWAN
             </div>
           </div>
@@ -329,7 +339,7 @@ function statusIcon(status) {
                 :style="{ width: progSembelihan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-xs font-bold mt-1', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-sm font-bold mt-1', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progSembelihan.pct }}% &nbsp;|&nbsp; {{ progSembelihan.frac }} HEWAN
             </div>
           </div>
@@ -355,7 +365,7 @@ function statusIcon(status) {
                 :style="{ width: progPengulitan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-xs font-bold mt-1', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-sm font-bold mt-1', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progPengulitan.pct }}% &nbsp;|&nbsp; {{ progPengulitan.frac }} HEWAN
             </div>
           </div>
@@ -381,7 +391,7 @@ function statusIcon(status) {
                 :style="{ width: progPengemasan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-xs font-bold mt-1', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-sm font-bold mt-1', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progPengemasan.pct }}% &nbsp;|&nbsp; {{ progPengemasan.frac }} HEWAN
             </div>
           </div>
@@ -429,7 +439,7 @@ function statusIcon(status) {
             >
               <td>
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  {{ ((activePage - 1) * PAGE_SIZE) + i + 1 }}
+                  {{ row.displayIndex }}
                 </div>
               </td>
               <td class="text-qurban-dark font-black">
@@ -578,8 +588,8 @@ function statusIcon(status) {
             </div>
 
           </div>
-          <div class="absolute bottom-1 left-0 right-0 text-center text-sm italic text-slate-400 font-bold tracking-wide">
-            *Data akan otomatis ter-update sesuai perkembangan di lapangan
+          <div class="absolute bottom-1 left-0 right-0 text-center text-md italic text-slate-400 font-bold tracking-wide">
+            *Data akan otomatis ter-update sesuai perkembangan di lapangan, bila merasa namanya tidak ada disini bisa hubungi Tim Qurban AhsanTV
           </div>
         </div>
 
@@ -616,12 +626,12 @@ function statusIcon(status) {
       <div class="bg-qurban-dark text-white p-3 flex justify-between items-center px-6 mt-auto flex-shrink-0">
         <div class="flex items-center gap-4 text-xl font-medium">
           <i class="fas fa-book-open text-2xl text-qurban-orange"></i>
-          <span class="italic text-base font-semibold">
+          <span class="italic text-lg font-semibold">
             "Maka laksanakanlah shalat karena Tuhanmu; dan berkurbanlah."
-            <span class="text-xs text-slate-300 ml-2 font-normal">(QS. Al-Kautsar: 2)</span>
+            <span class="text-sm text-slate-300 ml-2 font-normal">(QS. Al-Kautsar: 2)</span>
           </span>
         </div>
-        <div class="text-right leading-tight text-sm font-bold">
+        <div class="text-right leading-tight text-md font-bold">
           <div>Terima kasih atas partisipasi dan kepercayaannya.</div>
         </div>
       </div>

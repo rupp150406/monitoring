@@ -148,11 +148,28 @@
                     <!-- No -->
                     <td class="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500 text-xs">{{ i + 1 }}</td>
 
-                    <!-- ID Grup -->
+                    <!-- ID Grup + tombol force-sync per baris -->
                     <td class="py-3 px-4">
-                      <span class="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors duration-200">
-                        {{ row.id_grup }}
-                      </span>
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors duration-200">
+                          {{ row.id_grup }}
+                        </span>
+                        <button
+                          @click="toggleHideGroup(row.id_grup)"
+                          class="w-6 h-6 flex items-center justify-center rounded transition-colors duration-200 shrink-0"
+                          :class="hiddenGroupIds.includes(row.id_grup)
+                            ? 'bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/30 dark:hover:bg-rose-800/50 border border-rose-300 dark:border-rose-700'
+                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'"
+                          :title="hiddenGroupIds.includes(row.id_grup) ? 'Tampilkan kembali di Monitor TV' : 'Sembunyikan dari Monitor TV'"
+                        >
+                          <i
+                            class="text-[10px]"
+                            :class="hiddenGroupIds.includes(row.id_grup)
+                              ? 'fa-solid fa-eye-slash text-rose-500 dark:text-rose-400'
+                              : 'fa-solid fa-eye text-slate-400 dark:text-slate-500'"
+                          ></i>
+                        </button>
+                      </div>
                     </td>
 
                     <!-- Detail Hewan -->
@@ -275,6 +292,24 @@ function triggerRemoteReload() {
     type:    'broadcast',
     event:   'remote-reload',
     payload: { ts: Date.now() },
+  })
+}
+
+// ── Kendali Manual Sembunyikan/Tampilkan Baris di Monitor TV ──
+const hiddenGroupIds = ref([])
+
+function toggleHideGroup(idGrup) {
+  const idx = hiddenGroupIds.value.indexOf(idGrup)
+  if (idx !== -1) {
+    hiddenGroupIds.value.splice(idx, 1)
+  } else {
+    hiddenGroupIds.value.push(idGrup)
+  }
+  // Broadcast daftar terbaru ke semua layar monitor
+  pageSyncChannel.send({
+    type:    'broadcast',
+    event:   'update-hidden-groups',
+    payload: { hiddenIds: hiddenGroupIds.value },
   })
 }
 
