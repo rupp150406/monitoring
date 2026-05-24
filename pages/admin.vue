@@ -191,7 +191,7 @@
                     >
                       <div class="flex justify-center bg-slate-100 dark:bg-slate-950 rounded-lg p-1 w-fit mx-auto border border-slate-200 dark:border-slate-800 gap-1 transition-colors duration-200">
                         <button
-                          v-for="opt in STATUS_OPTIONS"
+                          v-for="opt in kolom.options"
                           :key="opt"
                           class="status-btn px-2.5 py-1 text-[11px] rounded-md"
                           :class="[opt.toLowerCase(), { active: row[kolom.field] === opt }]"
@@ -244,12 +244,14 @@ useHead({
 })
 
 // ── Konstanta ──
-const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
+// status_kedatangan hanya punya 2 opsi (constraint DB diperbarui).
+// Tiga kolom lainnya tetap 3 opsi seperti semula.
+const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']   // default 3-opsi
 const STATUS_COLUMNS = [
-  { field: 'status_kedatangan', label: 'Kedatangan' },
-  { field: 'status_sembelihan', label: 'Sembelihan' },
-  { field: 'status_pengulitan', label: 'Pengulitan' },
-  { field: 'status_pengemasan', label: 'Pengemasan' },
+  { field: 'status_kedatangan', label: 'Kedatangan', options: ['Belum', 'Diterima'] },
+  { field: 'status_sembelihan', label: 'Sembelihan', options: STATUS_OPTIONS },
+  { field: 'status_pengulitan', label: 'Pengulitan', options: STATUS_OPTIONS },
+  { field: 'status_pengemasan', label: 'Pengemasan', options: STATUS_OPTIONS },
 ]
 const TOTAL_PAGES   = 13
 const AUTO_INTERVAL = 6   // detik
@@ -616,6 +618,11 @@ function exportToExcel() {
   box-shadow: 0 2px 6px rgba(34, 197, 94, 0.22); font-weight: 700; animation: none;
 }
 
+.status-btn.diterima.active {
+  background-color: #1e3a5f; color: #93c5fd; border-color: #3b82f6;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.28); font-weight: 700; animation: none;
+}
+
 /* ══════════════════════════════════════
    LIGHT MODE — Active States
    ══════════════════════════════════════ */
@@ -630,6 +637,11 @@ function exportToExcel() {
 :global(html:not(.dark)) .status-btn.selesai.active {
   background-color: #dcfce7; color: #15803d; border-color: #22c55e;
   box-shadow: 0 2px 6px rgba(34, 197, 94, 0.20); font-weight: 700; animation: none;
+}
+
+:global(html:not(.dark)) .status-btn.diterima.active {
+  background-color: #dbeafe; color: #1d4ed8; border-color: #3b82f6;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.20); font-weight: 700; animation: none;
 }
 
 /* ══════════════════════════════════════

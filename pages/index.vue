@@ -233,13 +233,15 @@ const summaryBelum = computed(() =>
 
 // ── Status Badge Helpers ──
 function statusClass(status) {
-  if (status === 'Selesai') return 'bg-qurban-green text-white'
-  if (status === 'Proses')  return 'bg-qurban-orange text-white'
+  if (status === 'Selesai')  return 'bg-qurban-green text-white'
+  if (status === 'Proses')   return 'bg-qurban-orange text-white'
+  if (status === 'Diterima') return 'bg-blue-600 text-white'
   return 'bg-qurban-red text-white'
 }
 function statusIcon(status) {
-  if (status === 'Selesai') return 'fas fa-check-circle mr-1'
-  if (status === 'Proses')  return 'fas fa-spinner fa-spin mr-1'
+  if (status === 'Selesai')  return 'fas fa-check-circle mr-1'
+  if (status === 'Proses')   return 'fas fa-spinner fa-spin mr-1'
+  if (status === 'Diterima') return 'fas fa-circle-check mr-1'
   return 'fas fa-times-circle mr-1'
 }
 </script>
