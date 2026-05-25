@@ -194,9 +194,11 @@ const totalDomba   = computed(() => uniqueGrups.value.filter(i => String(i.jenis
 const totalKambing = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'kambing').length)
 
 function stageCount(field) {
-  const list    = uniqueGrups.value
-  const total   = list.length || 1
-  const selesai = list.filter(i => i.grup_hewan?.[field] === 'Selesai').length
+  const list       = uniqueGrups.value
+  const total      = list.length || 1
+  // Kolom kedatangan menggunakan status 'Diterima' sebagai penanda selesai
+  const doneStatus = field === 'status_kedatangan' ? 'Diterima' : 'Selesai'
+  const selesai = list.filter(i => i.grup_hewan?.[field] === doneStatus).length
   const proses  = list.filter(i => i.grup_hewan?.[field] === 'Proses').length
   const belum   = list.filter(i => i.grup_hewan?.[field] === 'Belum').length
   return {
@@ -218,16 +220,27 @@ const summaryProses = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return false
-    return [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
-      .some(s => s === 'Proses') && g.status_pengemasan !== 'Selesai'
+    // Normalisasi: 'Diterima' pada kedatangan diperlakukan setara 'Selesai'
+    const statuses = [
+      g.status_kedatangan === 'Diterima' ? 'Selesai' : g.status_kedatangan,
+      g.status_sembelihan,
+      g.status_pengulitan,
+      g.status_pengemasan,
+    ]
+    return statuses.some(s => s === 'Proses') && g.status_pengemasan !== 'Selesai'
   }).length
 )
 const summaryBelum = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return true
-    return [g.status_kedatangan, g.status_sembelihan, g.status_pengulitan, g.status_pengemasan]
-      .every(s => s === 'Belum')
+    // Hewan dianggap 'Belum mulai' hanya jika kedatangan masih 'Belum' (bukan 'Diterima')
+    return (
+      g.status_kedatangan === 'Belum' &&
+      g.status_sembelihan  === 'Belum' &&
+      g.status_pengulitan  === 'Belum' &&
+      g.status_pengemasan  === 'Belum'
+    )
   }).length
 )
 
