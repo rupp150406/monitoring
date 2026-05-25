@@ -253,7 +253,7 @@ const STATUS_COLUMNS = [
   { field: 'status_pengulitan', label: 'Pengulitan', options: STATUS_OPTIONS },
   { field: 'status_pengemasan', label: 'Pengemasan', options: STATUS_OPTIONS },
 ]
-const TOTAL_PAGES   = 13
+const TOTAL_PAGES   = 15
 const AUTO_INTERVAL = 6   // detik
 
 // ── Dark Mode ──
