@@ -21,7 +21,7 @@ const STATUS_COLUMNS = [
   { field: 'status_pengemasan', label: 'Siap Distribusi', options: STATUS_OPTIONS },
 ]
 
-const ROWS_PER_PAGE = 10  // ← diubah dari 6 → 10
+const ROWS_PER_PAGE = 10
 const AUTO_INTERVAL = 6
 
 // ── Dark Mode ──
@@ -274,17 +274,56 @@ function handleStatusClick(event, idGrup, kolom, statusBaru) {
 }
 
 async function updateStatus(idGrup, kolom, statusBaru) {
+  // Optimistic update UI
   const row = dataGrup.value?.find(r => r.id_grup === idGrup)
   if (row) row[kolom] = statusBaru
+
   const { error } = await supabase
     .from('grup_hewan')
     .update({ [kolom]: statusBaru })
     .eq('id_grup', idGrup)
+
   if (error) {
     console.error('updateStatus error:', error)
     refresh().then(() => { tableKey.value++ })
-  } else {
-    refresh().then(() => { tableKey.value++ })
+    return
+  }
+
+  refresh().then(() => { tableKey.value++ })
+
+  // ── Otomatisasi Siap Distribusi ──
+  // Jika kolom yang diupdate adalah status_pengulitan DAN nilainya 'Selesai',
+  // jalankan simulasi tahap pengemasan secara otomatis.
+  if (kolom === 'status_pengulitan' && statusBaru === 'Selesai') {
+    // Delay 10 menit (600000ms) → set status_pengemasan = 'Proses'
+    setTimeout(async () => {
+      const { error: errProses } = await supabase
+        .from('grup_hewan')
+        .update({ status_pengemasan: 'Proses' })
+        .eq('id_grup', idGrup)
+
+      if (errProses) {
+        console.error('Auto-Proses pengemasan error:', errProses)
+      } else {
+        console.log('[Auto] status_pengemasan → Proses untuk', idGrup)
+        refresh().then(() => { tableKey.value++ })
+      }
+
+      // Delay 5 menit (300000ms) → set status_pengemasan = 'Selesai'
+      setTimeout(async () => {
+        const { error: errSelesai } = await supabase
+          .from('grup_hewan')
+          .update({ status_pengemasan: 'Selesai' })
+          .eq('id_grup', idGrup)
+
+        if (errSelesai) {
+          console.error('Auto-Selesai pengemasan error:', errSelesai)
+        } else {
+          console.log('[Auto] status_pengemasan → Selesai untuk', idGrup)
+          refresh().then(() => { tableKey.value++ })
+        }
+      }, 300000) // 5 menit
+    }, 600000) // 10 menit
   }
 }
 
