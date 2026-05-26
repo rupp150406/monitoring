@@ -10,29 +10,73 @@
           <i class="fa-solid fa-moon-star text-emerald-600 dark:text-emerald-400 text-xl"></i>
           <h1 class="text-xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight">Qurban Admin Panel</h1>
         </div>
-        <button
-          class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          @click="toggleTheme"
-        >
-          <span class="material-symbols-outlined">{{ isDark ? 'light_mode' : 'dark_mode' }}</span>
-        </button>
+        <div class="flex items-center gap-3">
+          <!-- Badge mode perangkat -->
+          <span
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+            :class="isMobileDevice
+              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700'
+              : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'"
+          >
+            <i :class="isMobileDevice ? 'fa-solid fa-mobile-screen' : 'fa-solid fa-laptop'"></i>
+            {{ isMobileDevice ? 'Mode HP' : 'Mode Laptop' }}
+          </span>
+          <button
+            class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            @click="toggleTheme"
+          >
+            <span class="material-symbols-outlined">{{ isDark ? 'light_mode' : 'dark_mode' }}</span>
+          </button>
+        </div>
       </header>
 
       <!-- Scrollable Content -->
       <div class="flex-1 overflow-y-auto p-4 md:p-6 table-container">
         <div class="max-w-screen-2xl mx-auto space-y-4">
 
+          <!-- ══════════════════════════════════════════════════════════
+               BANNER MOBILE — tampil hanya jika dibuka di HP
+               Menjelaskan bahwa timer dijalankan oleh Laptop Admin,
+               dan HP hanya menerima sinkronisasi halaman secara realtime.
+               ══════════════════════════════════════════════════════════ -->
+          <div
+            v-if="isMobileDevice"
+            class="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-3 text-amber-800 dark:text-amber-300"
+          >
+            <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0 text-lg"></i>
+            <div class="text-sm leading-snug">
+              <span class="font-bold">Mode HP Terdeteksi.</span>
+              Timer rotasi halaman otomatis <span class="font-bold">dinonaktifkan</span> di perangkat ini untuk mencegah freeze saat layar mati.
+              Halaman akan sinkron secara realtime mengikuti <span class="font-bold">Laptop Admin</span> yang sedang aktif.
+              Gunakan tombol halaman di bawah untuk kontrol manual jika diperlukan.
+            </div>
+          </div>
+
           <!-- ── Remote Page Control ── -->
           <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm transition-colors duration-200">
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0 flex-wrap">
               <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">cast</span>
               <span class="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
                 TV DISPLAY MONITOR: HALAMAN [ {{ activePage }} / {{ totalPages }} ]
               </span>
+              <!-- Indikator: timer aktif (laptop) atau sinkron pasif (HP) -->
+              <span
+                class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="isMobileDevice
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full"
+                  :class="isMobileDevice ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'"
+                ></span>
+                {{ isMobileDevice ? 'Sinkron dari Laptop' : 'Timer Aktif' }}
+              </span>
             </div>
+
             <div class="flex gap-1 flex-wrap justify-center items-center">
 
-              <!-- ── Export & Print Actions ── -->
+              <!-- ── Export & Reload Actions ── -->
               <button
                 @click="exportToExcel()"
                 class="h-9 px-3 mr-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold rounded flex items-center gap-1.5 transition-all duration-200 shadow-sm focus:outline-none"
@@ -51,11 +95,13 @@
                 <span>Reload Layar TV</span>
               </button>
 
-              <!-- ── Auto Switch Countdown Display ── -->
-              <div class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mr-2">
+              <!-- ── Countdown (hanya tampil di Laptop/Desktop) ── -->
+              <div
+                v-if="!isMobileDevice"
+                class="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mr-2"
+              >
                 <i class="fa-solid fa-clock-rotate-left text-emerald-500 animate-spin" style="animation-duration: 6s;"></i>
                 <span>Auto Switch: {{ countdown }}s</span>
-                <!-- Mini progress bar -->
                 <div class="w-14 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
                     class="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-linear"
@@ -65,10 +111,6 @@
               </div>
 
               <!-- ── Page Number Buttons ── -->
-              <!--
-                totalPages = chunkedGrup.value.length — identik dengan index.vue.
-                Jumlah tombol halaman otomatis berkurang saat grup di-hide.
-              -->
               <button
                 v-for="p in totalPages"
                 :key="p"
@@ -149,10 +191,9 @@
                       ? 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'"
                   >
-                    <!-- No -->
                     <td class="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500 text-xs">{{ i + 1 }}</td>
 
-                    <!-- ID Grup + tombol hide/show per baris -->
+                    <!-- ID Grup + tombol hide/show -->
                     <td class="py-3 px-4">
                       <div class="flex items-center gap-2">
                         <span class="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors duration-200">
@@ -206,7 +247,7 @@
                       </div>
                     </td>
 
-                    <!-- Keterangan (live-save on change) -->
+                    <!-- Keterangan -->
                     <td class="py-3 px-4">
                       <input
                         type="text"
@@ -220,7 +261,6 @@
                 </tbody>
               </table>
             </div>
-            <!-- Footer count -->
             <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 dark:text-slate-600 text-right transition-colors duration-200">
               Menampilkan {{ filteredRows.length }} dari {{ dataGrup?.length ?? 0 }} grup
             </div>
@@ -256,7 +296,7 @@ const STATUS_COLUMNS = [
   { field: 'status_pengemasan', label: 'Pengemasan', options: STATUS_OPTIONS },
 ]
 
-const ROWS_PER_PAGE = 6   // harus identik dengan index.vue
+const ROWS_PER_PAGE = 6   // identik dengan index.vue
 const AUTO_INTERVAL = 6   // detik
 
 // ── Dark Mode ──
@@ -268,10 +308,27 @@ function toggleTheme() {
   localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// A.1 — DETEKSI PERANGKAT: Mobile vs Desktop
+//
+// Dievaluasi SEKALI saat onMounted (bukan computed) karena:
+//   - window tidak tersedia saat SSR
+//   - User agent dan lebar layar tidak berubah selama sesi berjalan
+//
+// Aturan:
+//   isMobileDevice = true  → HP/tablet: timer DINONAKTIFKAN, mode sinkron pasif
+//   isMobileDevice = false → Laptop/desktop: timer AKTIF, menjadi master broadcast
+// ══════════════════════════════════════════════════════════════════════
+const isMobileDevice = ref(false)
+
+function detectDevice() {
+  if (typeof window === 'undefined') return
+  isMobileDevice.value =
+    window.innerWidth < 768 ||
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
 // ── Fetch Data ──
-// Admin mengambil dari grup_hewan dengan sohibul_qurban bersarang,
-// agar chunkedGrup bisa membagi halaman berbasis jumlah sohibul qurban
-// secara identik dengan logika di index.vue.
 const tableKey = ref(0)
 const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
   const { data, error } = await supabase
@@ -282,12 +339,17 @@ const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () =>
   return data ?? []
 })
 
-// ── Broadcast & Remote Control ──
-const activePage      = ref(1)
-const countdown       = ref(AUTO_INTERVAL)
-let   masterTimer     = null
+// ── State Halaman ──
+const activePage  = ref(1)
+const countdown   = ref(AUTO_INTERVAL)
+let   masterTimer = null
+
+// ── Supabase Channel (dibuat satu kali, digunakan semua role) ──
+// Baik Laptop (master broadcaster) maupun HP (passive listener)
+// menggunakan channel yang SAMA agar payload terkirim/diterima dengan benar.
 const pageSyncChannel = supabase.channel('monitor-channel')
 
+// ── Broadcast Helpers ──
 function broadcastPage(page) {
   pageSyncChannel.send({
     type:    'broadcast',
@@ -304,7 +366,7 @@ function triggerRemoteReload() {
   })
 }
 
-// ── Kendali Hide/Show Grup ──
+// ── Hide / Show Grup ──
 const hiddenGroupIds = ref([])
 
 function toggleHideGroup(idGrup) {
@@ -314,7 +376,6 @@ function toggleHideGroup(idGrup) {
   } else {
     hiddenGroupIds.value.push(idGrup)
   }
-  // Broadcast daftar terbaru ke semua layar monitor
   pageSyncChannel.send({
     type:    'broadcast',
     event:   'update-hidden-groups',
@@ -322,52 +383,31 @@ function toggleHideGroup(idGrup) {
   })
 }
 
-// ── PERBAIKAN B.1: chunkedGrup ──
-//
-// Logika identik dengan index.vue, disesuaikan dengan struktur data admin
-// (grup_hewan dengan sohibul_qurban bersarang):
-//
-//   1. Flatten dataGrup → array baris sohibul qurban (satu baris per orang).
-//   2. Filter: buang baris yang id_grupnya ada di hiddenGroupIds.
-//   3. Potong menjadi chunk berisi maks ROWS_PER_PAGE baris per halaman.
-//
-// Dengan ini totalPages di Admin = totalPages di Monitor TV, selalu sinkron.
-//
+// ── chunkedGrup ──
+// Logika identik dengan index.vue:
+//   1. Flatten dataGrup → baris sohibul qurban (satu baris per orang)
+//   2. Filter hidden IDs
+//   3. Potong per ROWS_PER_PAGE
+// Ini memastikan totalPages Admin = totalPages Monitor TV = selalu sinkron.
 const chunkedGrup = computed(() => {
   const list = dataGrup.value ?? []
 
-  // Langkah 1: Flatten — tiap sohibul qurban menjadi satu baris
   const allRows = []
   for (const grup of list) {
     const sohibulList = grup.sohibul_qurban ?? []
     if (sohibulList.length === 0) {
-      // Grup tanpa sohibul tetap masuk sebagai baris kosong
-      // agar admin bisa melihat & hide grup tersebut
-      allRows.push({
-        _idGrup:   grup.id_grup,
-        _namaGrup: grup.label_tampilan ?? '—',
-        _jenis:    grup.jenis_hewan ?? '—',
-        _nama:     '(Belum Ada Anggota)',
-      })
+      allRows.push({ _idGrup: grup.id_grup })
     } else {
       for (const s of sohibulList) {
-        allRows.push({
-          _idGrup:   grup.id_grup,
-          _namaGrup: grup.label_tampilan ?? '—',
-          _jenis:    grup.jenis_hewan ?? '—',
-          _nama:     s.nama ?? '—',
-        })
+        allRows.push({ _idGrup: grup.id_grup, _nama: s.nama })
       }
     }
   }
 
-  // Langkah 2: Filter — buang baris yang grupnya disembunyikan
-  const activeRows = allRows.filter(row => {
-    const idStr = String(row._idGrup ?? '')
-    return !hiddenGroupIds.value.includes(idStr)
-  })
+  const activeRows = allRows.filter(row =>
+    !hiddenGroupIds.value.includes(String(row._idGrup ?? ''))
+  )
 
-  // Langkah 3: Potong menjadi halaman
   const pages = []
   for (let i = 0; i < activeRows.length; i += ROWS_PER_PAGE) {
     pages.push(activeRows.slice(i, i + ROWS_PER_PAGE))
@@ -375,29 +415,44 @@ const chunkedGrup = computed(() => {
   return pages
 })
 
-// ── PERBAIKAN B.2: totalPages — dari jumlah chunk ──
-// Identik dengan rumus di index.vue: chunkedGrup.value.length || 1.
 const totalPages = computed(() => chunkedGrup.value.length || 1)
 
+// Klik manual tombol halaman — tersedia untuk SEMUA perangkat
 function setActivePage(p) {
   activePage.value = p
   countdown.value  = AUTO_INTERVAL
   broadcastPage(p)
 }
 
-// ── PERBAIKAN B.3: startMasterInterval ──
-// Validasi ke totalPages.value yang dinamis — tidak pernah melampaui
-// jumlah halaman yang benar-benar ada setelah filter hidden IDs.
+// ══════════════════════════════════════════════════════════════════════
+// A.2 — startMasterInterval (HANYA dijalankan di Laptop/Desktop)
+//
+// Jika isMobileDevice = true → fungsi langsung return tanpa membuat
+// setInterval. Tidak ada timer yang bisa freeze saat layar HP mati.
+//
+// Jika isMobileDevice = false (Laptop) → setInterval berjalan normal,
+// setiap detik mengurangi countdown, dan saat countdown habis:
+//   - A.3: activePage diinkrementasi (dengan validasi totalPages dinamis)
+//   - A.3: broadcastPage() mengirim nomor halaman baru ke semua subscriber
+// ══════════════════════════════════════════════════════════════════════
 function startMasterInterval() {
+  // GUARD: Nonaktifkan sepenuhnya di perangkat mobile
+  if (isMobileDevice.value) {
+    console.log('[Admin] Mode HP terdeteksi — timer dinonaktifkan, hanya sinkron pasif.')
+    return
+  }
+
   if (masterTimer) return
   masterTimer = setInterval(() => {
     countdown.value--
     if (countdown.value <= 0) {
+      // A.3: Validasi ke totalPages dinamis sebelum increment
       if (activePage.value >= totalPages.value) {
         activePage.value = 1
       } else {
         activePage.value++
       }
+      // A.3: Broadcast nomor halaman baru ke TV Monitor & HP Admin
       broadcastPage(activePage.value)
       countdown.value = AUTO_INTERVAL
     }
@@ -412,16 +467,44 @@ function stopMasterInterval() {
 let realtimeChannel = null
 
 onMounted(() => {
-  // Pulihkan tema dari localStorage
+  // Deteksi perangkat sebelum apapun (window sudah tersedia di onMounted)
+  detectDevice()
+
+  // Pulihkan tema
   const saved = localStorage.getItem('color-theme')
   isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', isDark.value)
 
-  pageSyncChannel.subscribe((status) => {
-    console.log('[Admin] pageSyncChannel status:', status)
-    if (status === 'SUBSCRIBED') startMasterInterval()
-  })
+  // ══════════════════════════════════════════════════════════════════
+  // A.4 — pageSyncChannel subscribe
+  //
+  // Laptop (master): subscribe → SUBSCRIBED → startMasterInterval()
+  //   Listener 'master-page-change' di sini tidak digunakan Laptop
+  //   untuk mengubah activePage-nya sendiri (broadcast tidak bounced
+  //   back ke pengirim oleh Supabase Realtime).
+  //
+  // HP (passive listener): subscribe → SUBSCRIBED → timer tidak jalan.
+  //   Tapi HP mendengarkan event 'master-page-change' yang dikirim
+  //   Laptop, lalu memperbarui activePage.value secara instan.
+  //   Hasilnya: HP selalu tahu halaman berapa yang sedang On-Air di TV.
+  // ══════════════════════════════════════════════════════════════════
+  pageSyncChannel
+    .on('broadcast', { event: 'master-page-change' }, (payload) => {
+      // Hanya HP yang perlu mendengarkan ini untuk sinkronisasi pasif.
+      // Laptop memperbarui activePage-nya sendiri langsung di interval.
+      if (!isMobileDevice.value) return
 
+      const targetPage = payload?.payload?.page ?? payload?.page
+      if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
+      activePage.value = targetPage
+      console.log('[Admin-HP] Halaman disinkronkan dari Laptop:', targetPage)
+    })
+    .subscribe((status) => {
+      console.log('[Admin] pageSyncChannel status:', status)
+      if (status === 'SUBSCRIBED') startMasterInterval()
+    })
+
+  // Realtime Postgres untuk refresh tabel saat data berubah
   realtimeChannel = supabase
     .channel('admin-grup-hewan-changes')
     .on(
@@ -501,7 +584,6 @@ function handleStatusClick(event, idGrup, kolom, statusBaru) {
   updateStatus(idGrup, kolom, statusBaru)
 }
 
-// ── Update Status ──
 async function updateStatus(idGrup, kolom, statusBaru) {
   const row = dataGrup.value?.find(r => r.id_grup === idGrup)
   if (row) row[kolom] = statusBaru
@@ -518,7 +600,6 @@ async function updateStatus(idGrup, kolom, statusBaru) {
   }
 }
 
-// ── Update Keterangan ──
 async function updateKeterangan(idGrup, teksBaru) {
   const row = dataGrup.value?.find(r => r.id_grup === idGrup)
   if (row) row.keterangan = teksBaru
@@ -546,30 +627,30 @@ function exportToExcel() {
     if (grup.sohibul_qurban?.length > 0) {
       grup.sohibul_qurban.forEach(shohibul => {
         shohibulRows.push({
-          'No'                    : noUrut++,
-          'Nama Shohibul Qurban'  : shohibul.nama             || '—',
-          'ID Hewan'              : grup.id_grup,
-          'Jenis Hewan'           : grup.jenis_hewan,
-          'Label Grup'            : labelGrupValue,
-          'Status Kedatangan'     : grup.status_kedatangan    || 'Belum',
-          'Status Sembelih'       : grup.status_sembelihan    || 'Belum',
-          'Status Pengulitan'     : grup.status_pengulitan    || 'Belum',
-          'Status Pengemasan'     : grup.status_pengemasan    || 'Belum',
-          'Keterangan'            : grup.keterangan           || '-',
+          'No'                  : noUrut++,
+          'Nama Shohibul Qurban': shohibul.nama          || '—',
+          'ID Hewan'            : grup.id_grup,
+          'Jenis Hewan'         : grup.jenis_hewan,
+          'Label Grup'          : labelGrupValue,
+          'Status Kedatangan'   : grup.status_kedatangan || 'Belum',
+          'Status Sembelih'     : grup.status_sembelihan || 'Belum',
+          'Status Pengulitan'   : grup.status_pengulitan || 'Belum',
+          'Status Pengemasan'   : grup.status_pengemasan || 'Belum',
+          'Keterangan'          : grup.keterangan        || '-',
         })
       })
     } else {
       shohibulRows.push({
-        'No'                    : noUrut++,
-        'Nama Shohibul Qurban'  : '(Belum Ada Anggota)',
-        'ID Hewan'              : grup.id_grup,
-        'Jenis Hewan'           : grup.jenis_hewan,
-        'Label Grup'            : labelGrupValue,
-        'Status Kedatangan'     : grup.status_kedatangan    || 'Belum',
-        'Status Sembelih'       : grup.status_sembelihan    || 'Belum',
-        'Status Pengulitan'     : grup.status_pengulitan    || 'Belum',
-        'Status Pengemasan'     : grup.status_pengemasan    || 'Belum',
-        'Keterangan'            : grup.keterangan           || '-',
+        'No'                  : noUrut++,
+        'Nama Shohibul Qurban': '(Belum Ada Anggota)',
+        'ID Hewan'            : grup.id_grup,
+        'Jenis Hewan'         : grup.jenis_hewan,
+        'Label Grup'          : labelGrupValue,
+        'Status Kedatangan'   : grup.status_kedatangan || 'Belum',
+        'Status Sembelih'     : grup.status_sembelihan || 'Belum',
+        'Status Pengulitan'   : grup.status_pengulitan || 'Belum',
+        'Status Pengemasan'   : grup.status_pengemasan || 'Belum',
+        'Keterangan'          : grup.keterangan        || '-',
       })
     }
   })
@@ -577,7 +658,6 @@ function exportToExcel() {
   const worksheet = XLSX.utils.json_to_sheet(shohibulRows)
   const workbook  = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifes Shohibul Qurban')
-
   const tglCetak = new Date().toISOString().split('T')[0]
   XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`)
 }
