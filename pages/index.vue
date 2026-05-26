@@ -32,8 +32,8 @@ function updateClock() {
 }
 
 // ── Fetch Data Utama ──
-// Menggunakan ref + fetchGrupHewan() agar bisa dipanggil ulang
-// kapan saja dari listener postgres_changes tanpa membungkus useAsyncData.
+// Query dari sohibul_qurban: tiap baris = satu orang penyumbang.
+// Satu grup (id_grup) bisa memiliki 1–7 baris sohibul qurban.
 const rawData = ref([])
 
 async function fetchGrupHewan() {
@@ -66,9 +66,9 @@ await fetchGrupHewan()
 // ── State Halaman & Shimmer ──
 // activePage: 1-based, dikontrol penuh oleh Admin via broadcast.
 // TIDAK ada interval lokal — timer murni dari Admin.
-const activePage      = ref(1)
-const isShimmering    = ref(false)
-let   shimmerTimeout  = null
+const activePage     = ref(1)
+const isShimmering   = ref(false)
+let   shimmerTimeout = null
 
 // ── Daftar ID Grup yang disembunyikan (dikirim Admin via broadcast) ──
 const hiddenGroupIds = ref([])
@@ -88,7 +88,8 @@ onMounted(() => {
     // 1. Listen sinyal pindah halaman dari Master Admin Panel
     .on('broadcast', { event: 'master-page-change' }, (payload) => {
       const targetPage = payload?.payload?.page ?? payload?.page
-      if (!targetPage || targetPage < 1 || targetPage > 15) return
+      // Validasi dinamis: tolak jika di luar rentang totalPages terfilter saat ini
+      if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
 
       if (shimmerTimeout) clearTimeout(shimmerTimeout)
 
@@ -134,20 +135,31 @@ onUnmounted(() => {
 })
 
 
-// ── Flatten ke baris tabel ──
-// Filter: berdasarkan daftar hiddenGroupIds yang dikirim Admin via broadcast.
-// displayIndex: nomor urut dihitung ulang dari 1 setelah filter (Dynamic Re-indexing).
-const allRows = computed(() => {
+// ── PERBAIKAN A.1–A.3: chunkedGrup ──
+//
+// Logika inti pagination yang BENAR:
+//   1. Filter rawData: buang semua baris yang id_grupnya ada di hiddenGroupIds.
+//   2. Map setiap baris menjadi objek tampilan (dengan displayIndex global).
+//   3. Potong array hasil poin 2 menjadi chunk berisi maksimal 6 baris per halaman.
+//
+// Dengan cara ini:
+//   - totalPages = chunkedGrup.value.length  → selalu akurat, tidak pernah overcounting
+//   - Tidak ada halaman blank — setiap halaman terisi penuh dari data bersih
+//   - displayIndex dihitung ulang secara global (1, 2, 3 ... N) tanpa bolong
+//
+const ROWS_PER_PAGE = 6
+
+const chunkedGrup = computed(() => {
   if (!rawData.value?.length) return []
 
-  // 1. Saring: buang ID grup yang sedang disembunyikan oleh Admin
-  const activeData = rawData.value.filter(item => {
+  // Langkah 1: Saring — buang baris yang grupnya sedang disembunyikan Admin
+  const activeRows = rawData.value.filter(item => {
     const idGrupStr = String(item.id_grup ?? '')
     return !hiddenGroupIds.value.includes(idGrupStr)
   })
 
-  // 2. Map + re-index: displayIndex selalu 1, 2, 3... tanpa bolong
-  return activeData.map((item, index) => ({
+  // Langkah 2: Map ke objek tampilan dengan nomor urut global yang bersih
+  const mapped = activeRows.map((item, index) => ({
     displayIndex: index + 1,
     id:           item.id,
     idGrup:       String(item.id_grup ?? ''),
@@ -159,24 +171,31 @@ const allRows = computed(() => {
     s4:           item.grup_hewan?.status_pengemasan ?? 'Belum',
     notes:        item.grup_hewan?.keterangan        ?? '—',
   }))
+
+  // Langkah 3: Potong menjadi halaman — maks ROWS_PER_PAGE baris per halaman
+  const pages = []
+  for (let i = 0; i < mapped.length; i += ROWS_PER_PAGE) {
+    pages.push(mapped.slice(i, i + ROWS_PER_PAGE))
+  }
+  return pages
 })
 
-// ── Pagination (dikontrol oleh activePage 1-based dari Admin) ──
+// ── PERBAIKAN A.3: totalPages — diambil langsung dari jumlah chunk ──
+// Tidak pernah overcounting karena chunk dibuat dari data yang sudah terfilter.
+const totalPages = computed(() => chunkedGrup.value.length || 1)
 
-const PAGE_SIZE = 6
-
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(allRows.value.length / PAGE_SIZE))
-)
-
+// ── Halaman aktif — baris yang tampil di monitor TV ──
+// Menggunakan chunkedGrup[activePage - 1] secara langsung,
+// sehingga template tidak perlu filter v-if tambahan (PERBAIKAN A.4).
 const paginatedData = computed(() => {
-  const pageIndex = activePage.value - 1   // konversi ke 0-based
-  const start     = Math.max(0, pageIndex) * PAGE_SIZE
-  return allRows.value.slice(start, start + PAGE_SIZE)
+  const page = chunkedGrup.value[activePage.value - 1]
+  return page ?? []
 })
 
 // ── Statistik ──
-// uniqueGrups: deduplikasi per id_grup menggunakan Set string
+// uniqueGrups: deduplikasi per id_grup menggunakan Set string.
+// Statistik dihitung dari SEMUA rawData (termasuk yang di-hide)
+// agar angka progress dashboard tidak berubah saat hide diaktifkan.
 const uniqueGrups = computed(() => {
   if (!rawData.value?.length) return []
   const seen = new Set()
@@ -269,7 +288,7 @@ function statusIcon(status) {
         <div class="flex items-center w-1/4">
           <div class="logo-img-wrapper">
             <img
-              src="https://ahsan.tv/wp-content/uploads/2026/05/ini.webp"
+              src="https://ahsan.tv/wp-content/uploads/2026/05/Logo-Ahsan-TV.webp"
               alt="Logo / Header Qurban"
               loading="eager"
             />
@@ -415,6 +434,11 @@ function statusIcon(status) {
       </div>
 
       <!-- ── DATA TABLE ── -->
+      <!--
+        PERBAIKAN A.4: Tidak ada v-if filter hiddenGroupIds di sini.
+        paginatedData sudah bersih karena bersumber dari chunkedGrup
+        yang memfilter hidden IDs sejak awal di level computed script.
+      -->
       <div class="flex-grow px-6 py-1 overflow-hidden flex flex-col bg-white" style="height: calc(100vh - 450px); min-height: 0;">
         <table class="w-full qurban-table table-fixed h-full">
           <colgroup>
@@ -448,7 +472,7 @@ function statusIcon(status) {
           <tbody :class="{ 'animate-shimmer': isShimmering }">
             <tr
               v-for="(row, i) in paginatedData"
-              :key="`row-${activePage}-${row.idGrup}`"
+              :key="`row-${activePage}-${row.id}`"
               :style="{ height: 'calc(100%/6)' }"
               :class="[i % 2 === 1 ? 'bg-slate-100' : 'bg-white', 'relative overflow-hidden']"
             >
@@ -464,7 +488,6 @@ function statusIcon(status) {
               </td>
               <td class="capitalize">
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  <i :class="['mr-2 text-2xl text-gray-700', row.animalIcon]"></i>
                   <span>{{ row.animalName }}</span>
                 </div>
               </td>
@@ -624,7 +647,7 @@ function statusIcon(status) {
               <i class="fas fa-times-circle text-3xl text-qurban-red shrink-0"></i>
               <span class="font-bold text-slate-700 text-lg">Belum Dimulai</span>
             </div>
-            <!-- Indikator halaman aktif -->
+            <!-- Indikator halaman aktif — totalPages = chunkedGrup.length, selalu akurat -->
             <div class="mt-2 pt-3 border-t border-slate-200 flex items-center gap-2">
               <i class="fas fa-tv text-qurban-dark text-lg shrink-0"></i>
               <span class="text-sm font-black text-slate-600">
@@ -758,10 +781,9 @@ html, body {
 
 /* ── Logo wrapper ── */
 .logo-img-wrapper {
-  width: 217px;
-  height: 100px;
+  width: 237px;
+  height: 130px;
   overflow: hidden;
-  border-radius: 8px;
   flex-shrink: 0;
 }
 .logo-img-wrapper img {
@@ -817,17 +839,6 @@ html, body {
   ══════════════════════════════════════════
   SHIMMER REVEAL EFFECT — Master/Client Sync
   ══════════════════════════════════════════
-
-  .animate-shimmer diaktifkan pada <tbody> melalui
-  :class="{ 'animate-shimmer': isShimmering }".
-
-  Saat isShimmering = true:
-    - ::after menyapu sinar kilauan dari kiri ke kanan
-    - Setiap .animate-text-reveal di dalam <td> memunculkan
-      konten baru dengan fade + blur hilang
-
-  isShimmering dikembalikan false oleh setTimeout 800ms
-  setelah activePage diubah dari payload broadcast.
 */
 
 /* Layer sinar yang menyapu */

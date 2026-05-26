@@ -27,7 +27,7 @@
             <div class="flex items-center gap-2 shrink-0">
               <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">cast</span>
               <span class="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                TV DISPLAY MONITOR: HALAMAN [ {{ activePage }} ]
+                TV DISPLAY MONITOR: HALAMAN [ {{ activePage }} / {{ totalPages }} ]
               </span>
             </div>
             <div class="flex gap-1 flex-wrap justify-center items-center">
@@ -65,8 +65,12 @@
               </div>
 
               <!-- ── Page Number Buttons ── -->
+              <!--
+                totalPages = chunkedGrup.value.length — identik dengan index.vue.
+                Jumlah tombol halaman otomatis berkurang saat grup di-hide.
+              -->
               <button
-                v-for="p in TOTAL_PAGES"
+                v-for="p in totalPages"
                 :key="p"
                 class="w-9 h-9 rounded text-sm font-bold flex items-center justify-center shrink-0 transition-colors duration-200"
                 :class="p === activePage
@@ -148,7 +152,7 @@
                     <!-- No -->
                     <td class="py-3 px-4 text-center font-mono text-slate-400 dark:text-slate-500 text-xs">{{ i + 1 }}</td>
 
-                    <!-- ID Grup + tombol force-sync per baris -->
+                    <!-- ID Grup + tombol hide/show per baris -->
                     <td class="py-3 px-4">
                       <div class="flex items-center gap-2">
                         <span class="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-md text-xs font-bold tracking-wide transition-colors duration-200">
@@ -244,16 +248,15 @@ useHead({
 })
 
 // ── Konstanta ──
-// status_kedatangan hanya punya 2 opsi (constraint DB diperbarui).
-// Tiga kolom lainnya tetap 3 opsi seperti semula.
-const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']   // default 3-opsi
+const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
 const STATUS_COLUMNS = [
   { field: 'status_kedatangan', label: 'Kedatangan', options: ['Belum', 'Diterima'] },
   { field: 'status_sembelihan', label: 'Sembelihan', options: STATUS_OPTIONS },
   { field: 'status_pengulitan', label: 'Pengulitan', options: STATUS_OPTIONS },
   { field: 'status_pengemasan', label: 'Pengemasan', options: STATUS_OPTIONS },
 ]
-const TOTAL_PAGES   = 15
+
+const ROWS_PER_PAGE = 6   // harus identik dengan index.vue
 const AUTO_INTERVAL = 6   // detik
 
 // ── Dark Mode ──
@@ -265,21 +268,26 @@ function toggleTheme() {
   localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
 }
 
-// ══════════════════════════════════════════════════════
-// MASTER REMOTE PAGE CONTROL
-//
-// Arsitektur satu-arah:
-//   Admin (Master) → broadcast → TV Monitor (Client)
-//
-// pageSyncChannel dibuat SATU kali di top-level agar
-// .send() bisa dipanggil kapan saja setelah .subscribe().
-// ══════════════════════════════════════════════════════
-const activePage     = ref(1)
-const countdown      = ref(AUTO_INTERVAL)
-let   masterTimer    = null
+// ── Fetch Data ──
+// Admin mengambil dari grup_hewan dengan sohibul_qurban bersarang,
+// agar chunkedGrup bisa membagi halaman berbasis jumlah sohibul qurban
+// secara identik dengan logika di index.vue.
+const tableKey = ref(0)
+const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
+  const { data, error } = await supabase
+    .from('grup_hewan')
+    .select('*, sohibul_qurban(*)')
+    .order('id_grup', { ascending: true })
+  if (error) { console.error('Supabase fetch error:', error); return [] }
+  return data ?? []
+})
+
+// ── Broadcast & Remote Control ──
+const activePage      = ref(1)
+const countdown       = ref(AUTO_INTERVAL)
+let   masterTimer     = null
 const pageSyncChannel = supabase.channel('monitor-channel')
 
-// Kirim nomor halaman ke TV Monitor via Supabase Broadcast
 function broadcastPage(page) {
   pageSyncChannel.send({
     type:    'broadcast',
@@ -288,7 +296,6 @@ function broadcastPage(page) {
   })
 }
 
-// Kirim sinyal force reload ke semua layar TV Monitor
 function triggerRemoteReload() {
   pageSyncChannel.send({
     type:    'broadcast',
@@ -297,7 +304,7 @@ function triggerRemoteReload() {
   })
 }
 
-// ── Kendali Manual Sembunyikan/Tampilkan Baris di Monitor TV ──
+// ── Kendali Hide/Show Grup ──
 const hiddenGroupIds = ref([])
 
 function toggleHideGroup(idGrup) {
@@ -315,20 +322,82 @@ function toggleHideGroup(idGrup) {
   })
 }
 
-// Klik manual tombol halaman → pindah + reset countdown + broadcast
+// ── PERBAIKAN B.1: chunkedGrup ──
+//
+// Logika identik dengan index.vue, disesuaikan dengan struktur data admin
+// (grup_hewan dengan sohibul_qurban bersarang):
+//
+//   1. Flatten dataGrup → array baris sohibul qurban (satu baris per orang).
+//   2. Filter: buang baris yang id_grupnya ada di hiddenGroupIds.
+//   3. Potong menjadi chunk berisi maks ROWS_PER_PAGE baris per halaman.
+//
+// Dengan ini totalPages di Admin = totalPages di Monitor TV, selalu sinkron.
+//
+const chunkedGrup = computed(() => {
+  const list = dataGrup.value ?? []
+
+  // Langkah 1: Flatten — tiap sohibul qurban menjadi satu baris
+  const allRows = []
+  for (const grup of list) {
+    const sohibulList = grup.sohibul_qurban ?? []
+    if (sohibulList.length === 0) {
+      // Grup tanpa sohibul tetap masuk sebagai baris kosong
+      // agar admin bisa melihat & hide grup tersebut
+      allRows.push({
+        _idGrup:   grup.id_grup,
+        _namaGrup: grup.label_tampilan ?? '—',
+        _jenis:    grup.jenis_hewan ?? '—',
+        _nama:     '(Belum Ada Anggota)',
+      })
+    } else {
+      for (const s of sohibulList) {
+        allRows.push({
+          _idGrup:   grup.id_grup,
+          _namaGrup: grup.label_tampilan ?? '—',
+          _jenis:    grup.jenis_hewan ?? '—',
+          _nama:     s.nama ?? '—',
+        })
+      }
+    }
+  }
+
+  // Langkah 2: Filter — buang baris yang grupnya disembunyikan
+  const activeRows = allRows.filter(row => {
+    const idStr = String(row._idGrup ?? '')
+    return !hiddenGroupIds.value.includes(idStr)
+  })
+
+  // Langkah 3: Potong menjadi halaman
+  const pages = []
+  for (let i = 0; i < activeRows.length; i += ROWS_PER_PAGE) {
+    pages.push(activeRows.slice(i, i + ROWS_PER_PAGE))
+  }
+  return pages
+})
+
+// ── PERBAIKAN B.2: totalPages — dari jumlah chunk ──
+// Identik dengan rumus di index.vue: chunkedGrup.value.length || 1.
+const totalPages = computed(() => chunkedGrup.value.length || 1)
+
 function setActivePage(p) {
   activePage.value = p
-  countdown.value  = AUTO_INTERVAL   // reset agar hitungan mundur dari 6 lagi
+  countdown.value  = AUTO_INTERVAL
   broadcastPage(p)
 }
 
-// ── Master Interval: hitung mundur 1 detik, broadcast tiap 6 detik ──
+// ── PERBAIKAN B.3: startMasterInterval ──
+// Validasi ke totalPages.value yang dinamis — tidak pernah melampaui
+// jumlah halaman yang benar-benar ada setelah filter hidden IDs.
 function startMasterInterval() {
   if (masterTimer) return
   masterTimer = setInterval(() => {
     countdown.value--
     if (countdown.value <= 0) {
-      activePage.value = (activePage.value % TOTAL_PAGES) + 1
+      if (activePage.value >= totalPages.value) {
+        activePage.value = 1
+      } else {
+        activePage.value++
+      }
       broadcastPage(activePage.value)
       countdown.value = AUTO_INTERVAL
     }
@@ -339,35 +408,20 @@ function stopMasterInterval() {
   if (masterTimer) { clearInterval(masterTimer); masterTimer = null }
 }
 
-// ── Fetch Data ──
-const tableKey = ref(0)
-const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
-  const { data, error } = await supabase
-    .from('grup_hewan')
-    .select('*, sohibul_qurban(*)')
-    .order('id_grup', { ascending: true })
-  if (error) { console.error('Supabase fetch error:', error); return [] }
-  return data ?? []
-})
-
 // ── Realtime & Lifecycle ──
 let realtimeChannel = null
 
 onMounted(() => {
-  // Pulihkan tema
+  // Pulihkan tema dari localStorage
   const saved = localStorage.getItem('color-theme')
   isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', isDark.value)
 
-  // Subscribe channel broadcast SEBELUM memanggil .send()
-  // Tanpa subscribe(), Supabase menolak semua .send() calls.
   pageSyncChannel.subscribe((status) => {
     console.log('[Admin] pageSyncChannel status:', status)
-    // Mulai interval otomatis hanya setelah channel siap
     if (status === 'SUBSCRIBED') startMasterInterval()
   })
 
-  // Realtime Postgres: refresh tabel saat ada perubahan di DB
   realtimeChannel = supabase
     .channel('admin-grup-hewan-changes')
     .on(
@@ -413,11 +467,11 @@ const stats = computed(() => {
     [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].some(s => s === 'Proses')
     && r.status_pengemasan !== 'Selesai'
   ).length
-  const belum   = list.filter(r =>
+  const belum = list.filter(r =>
     [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].every(s => s === 'Belum')
   ).length
   return [
-    { label: 'Total Hewan',         value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Total Grup Hewan',    value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
     { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'     },
     { label: 'Sedang Diproses',     value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'     },
     { label: 'Belum Mulai',         value: belum,   colorClass: 'text-red-500 dark:text-red-400'         },
@@ -617,7 +671,6 @@ function exportToExcel() {
   background-color: #14532d; color: #86efac; border-color: #22c55e;
   box-shadow: 0 2px 6px rgba(34, 197, 94, 0.22); font-weight: 700; animation: none;
 }
-
 .status-btn.diterima.active {
   background-color: #1e3a5f; color: #93c5fd; border-color: #3b82f6;
   box-shadow: 0 2px 6px rgba(59, 130, 246, 0.28); font-weight: 700; animation: none;
@@ -638,7 +691,6 @@ function exportToExcel() {
   background-color: #dcfce7; color: #15803d; border-color: #22c55e;
   box-shadow: 0 2px 6px rgba(34, 197, 94, 0.20); font-weight: 700; animation: none;
 }
-
 :global(html:not(.dark)) .status-btn.diterima.active {
   background-color: #dbeafe; color: #1d4ed8; border-color: #3b82f6;
   box-shadow: 0 2px 6px rgba(59, 130, 246, 0.20); font-weight: 700; animation: none;
