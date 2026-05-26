@@ -9,10 +9,8 @@ useHead({
   ],
 })
 
-// ── Supabase ──
 const supabase = useSupabaseClient()
 
-// ── Clock ──
 const HIJRI_OVERRIDE = { day: 10, month: 'Dzulhijjah', year: 1447 }
 const MASEHI_MONTHS  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
@@ -31,9 +29,6 @@ function updateClock() {
   dtHijri.value  = `${HIJRI_OVERRIDE.day} ${HIJRI_OVERRIDE.month} ${HIJRI_OVERRIDE.year}H`
 }
 
-// ── Fetch Data Utama ──
-// Query dari sohibul_qurban: tiap baris = satu orang penyumbang.
-// Satu grup (id_grup) bisa memiliki 1–7 baris sohibul qurban.
 const rawData = ref([])
 
 async function fetchGrupHewan() {
@@ -60,20 +55,13 @@ async function fetchGrupHewan() {
   rawData.value = data ?? []
 }
 
-// Fetch awal saat SSR/setup (sebelum onMounted)
 await fetchGrupHewan()
 
-// ── State Halaman & Shimmer ──
-// activePage: 1-based, dikontrol penuh oleh Admin via broadcast.
-// TIDAK ada interval lokal — timer murni dari Admin.
 const activePage     = ref(1)
 const isShimmering   = ref(false)
 let   shimmerTimeout = null
-
-// ── Daftar ID Grup yang disembunyikan (dikirim Admin via broadcast) ──
 const hiddenGroupIds = ref([])
 
-// ── Channels & Timers ──
 let realtimeChannel = null
 let timerClock      = null
 
@@ -82,49 +70,40 @@ onMounted(() => {
   updateClock()
   timerClock = setInterval(updateClock, 1000)
 
-  // Inisialisasi Kunci Utama Realtime (Single Channel, Dual Event)
-  realtimeChannel = supabase.channel('monitor-channel')
+  realtimeChannel = supabase.channel('page-sync-channel')
 
-    // 1. Listen sinyal pindah halaman dari Master Admin Panel
-    .on('broadcast', { event: 'master-page-change' }, (payload) => {
-      const targetPage = payload?.payload?.page ?? payload?.page
-      // Validasi dinamis: tolak jika di luar rentang totalPages terfilter saat ini
+    .on('broadcast', { event: 'PAGE_CHANGED' }, (msg) => {
+      const targetPage = msg?.payload?.page
       if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
-
       if (shimmerTimeout) clearTimeout(shimmerTimeout)
-
       isShimmering.value = true
       activePage.value   = targetPage
-
       shimmerTimeout = setTimeout(() => {
         isShimmering.value = false
-        shimmerTimeout = null
+        shimmerTimeout     = null
       }, 800)
     })
 
-    // 2. Listen perubahan data di database (auto fetch data terbaru)
     .on('postgres_changes', {
       event:  'UPDATE',
       schema: 'public',
       table:  'grup_hewan',
     }, (payload) => {
-      console.log('[Monitor] DB terupdate, menarik data terbaru...', payload)
+      console.log('[Monitor] DB terupdate:', payload)
       fetchGrupHewan()
     })
 
-    // 3. Listen sinyal force reload dari Admin Panel
     .on('broadcast', { event: 'remote-reload' }, () => {
-      console.log('[Monitor] Sinyal force reload diterima, memuat ulang...')
+      console.log('[Monitor] Force reload diterima...')
       setTimeout(() => window.location.reload(), 300)
     })
 
-    // 4. Listen daftar ID grup yang disembunyikan oleh Admin
     .on('broadcast', { event: 'update-hidden-groups' }, (payload) => {
       hiddenGroupIds.value = payload?.payload?.hiddenIds ?? []
     })
 
     .subscribe((status) => {
-      console.log('[Monitor] Status koneksi Supabase Realtime:', status)
+      console.log('[Monitor] Supabase Realtime:', status)
     })
 })
 
@@ -134,31 +113,16 @@ onUnmounted(() => {
   if (realtimeChannel) supabase.removeChannel(realtimeChannel)
 })
 
-
-// ── PERBAIKAN A.1–A.3: chunkedGrup ──
-//
-// Logika inti pagination yang BENAR:
-//   1. Filter rawData: buang semua baris yang id_grupnya ada di hiddenGroupIds.
-//   2. Map setiap baris menjadi objek tampilan (dengan displayIndex global).
-//   3. Potong array hasil poin 2 menjadi chunk berisi maksimal 6 baris per halaman.
-//
-// Dengan cara ini:
-//   - totalPages = chunkedGrup.value.length  → selalu akurat, tidak pernah overcounting
-//   - Tidak ada halaman blank — setiap halaman terisi penuh dari data bersih
-//   - displayIndex dihitung ulang secara global (1, 2, 3 ... N) tanpa bolong
-//
-const ROWS_PER_PAGE = 6
+// ── chunkedGrup ──
+const ROWS_PER_PAGE = 10  // ← diubah dari 6 → 10
 
 const chunkedGrup = computed(() => {
   if (!rawData.value?.length) return []
 
-  // Langkah 1: Saring — buang baris yang grupnya sedang disembunyikan Admin
-  const activeRows = rawData.value.filter(item => {
-    const idGrupStr = String(item.id_grup ?? '')
-    return !hiddenGroupIds.value.includes(idGrupStr)
-  })
+  const activeRows = rawData.value.filter(item =>
+    !hiddenGroupIds.value.includes(String(item.id_grup ?? ''))
+  )
 
-  // Langkah 2: Map ke objek tampilan dengan nomor urut global yang bersih
   const mapped = activeRows.map((item, index) => ({
     displayIndex: index + 1,
     id:           item.id,
@@ -172,7 +136,6 @@ const chunkedGrup = computed(() => {
     notes:        item.grup_hewan?.keterangan        ?? '—',
   }))
 
-  // Langkah 3: Potong menjadi halaman — maks ROWS_PER_PAGE baris per halaman
   const pages = []
   for (let i = 0; i < mapped.length; i += ROWS_PER_PAGE) {
     pages.push(mapped.slice(i, i + ROWS_PER_PAGE))
@@ -180,22 +143,18 @@ const chunkedGrup = computed(() => {
   return pages
 })
 
-// ── PERBAIKAN A.3: totalPages — diambil langsung dari jumlah chunk ──
-// Tidak pernah overcounting karena chunk dibuat dari data yang sudah terfilter.
-const totalPages = computed(() => chunkedGrup.value.length || 1)
+const totalPages    = computed(() => chunkedGrup.value.length || 1)
+const paginatedData = computed(() => chunkedGrup.value[activePage.value - 1] ?? [])
 
-// ── Halaman aktif — baris yang tampil di monitor TV ──
-// Menggunakan chunkedGrup[activePage - 1] secara langsung,
-// sehingga template tidak perlu filter v-if tambahan (PERBAIKAN A.4).
-const paginatedData = computed(() => {
-  const page = chunkedGrup.value[activePage.value - 1]
-  return page ?? []
-})
+// ── Label header kolom ──
+const stageHeaders = [
+  { key: 's1', label: 'Kedatangan'      },
+  { key: 's2', label: 'Sembelihan'      },
+  { key: 's3', label: 'Pengulitan'      },
+  { key: 's4', label: 'Siap Distribusi' },
+]
 
 // ── Statistik ──
-// uniqueGrups: deduplikasi per id_grup menggunakan Set string.
-// Statistik dihitung dari SEMUA rawData (termasuk yang di-hide)
-// agar angka progress dashboard tidak berubah saat hide diaktifkan.
 const uniqueGrups = computed(() => {
   if (!rawData.value?.length) return []
   const seen = new Set()
@@ -209,13 +168,17 @@ const uniqueGrups = computed(() => {
 
 const totalHewan   = computed(() => rawData.value?.length ?? 0)
 const totalSapi    = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'sapi').length)
-const totalDomba   = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'domba').length)
-const totalKambing = computed(() => uniqueGrups.value.filter(i => String(i.jenis_hewan ?? '').toLowerCase() === 'kambing').length)
-
+const totalKambingDomba = computed(() => {
+  if (!uniqueGrups.value) return 0
+  // Menyaring grup yang jenis_hewan-nya adalah Domba ATAU Kambing
+  return uniqueGrups.value.filter(g => {
+    const jenis = String(g.jenis_hewan ?? '').toLowerCase()
+    return jenis === 'domba' || jenis === 'kambing'
+  }).length
+})
 function stageCount(field) {
   const list       = uniqueGrups.value
   const total      = list.length || 1
-  // Kolom kedatangan menggunakan status 'Diterima' sebagai penanda selesai
   const doneStatus = field === 'status_kedatangan' ? 'Diterima' : 'Selesai'
   const selesai = list.filter(i => i.grup_hewan?.[field] === doneStatus).length
   const proses  = list.filter(i => i.grup_hewan?.[field] === 'Proses').length
@@ -232,6 +195,13 @@ const progSembelihan = computed(() => stageCount('status_sembelihan'))
 const progPengulitan = computed(() => stageCount('status_pengulitan'))
 const progPengemasan = computed(() => stageCount('status_pengemasan'))
 
+const progressCards = [
+  { key: 'kedatangan', label: 'Kedatangan',     prog: () => progKedatangan.value },
+  { key: 'sembelihan', label: 'Sembelihan',      prog: () => progSembelihan.value },
+  { key: 'pengulitan', label: 'Pengulitan',      prog: () => progPengulitan.value },
+  { key: 'pengemasan', label: 'Siap Distribusi', prog: () => progPengemasan.value },
+]
+
 const summarySelesai = computed(() =>
   uniqueGrups.value.filter(i => i.grup_hewan?.status_pengemasan === 'Selesai').length
 )
@@ -239,7 +209,6 @@ const summaryProses = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return false
-    // Normalisasi: 'Diterima' pada kedatangan diperlakukan setara 'Selesai'
     const statuses = [
       g.status_kedatangan === 'Diterima' ? 'Selesai' : g.status_kedatangan,
       g.status_sembelihan,
@@ -253,7 +222,6 @@ const summaryBelum = computed(() =>
   uniqueGrups.value.filter(i => {
     const g = i.grup_hewan
     if (!g) return true
-    // Hewan dianggap 'Belum mulai' hanya jika kedatangan masih 'Belum' (bukan 'Diterima')
     return (
       g.status_kedatangan === 'Belum' &&
       g.status_sembelihan  === 'Belum' &&
@@ -263,7 +231,6 @@ const summaryBelum = computed(() =>
   }).length
 )
 
-// ── Status Badge Helpers ──
 function statusClass(status) {
   if (status === 'Selesai')  return 'bg-qurban-green text-white'
   if (status === 'Proses')   return 'bg-qurban-orange text-white'
@@ -283,7 +250,7 @@ function statusIcon(status) {
     <div class="dashboard-container" id="dashboard">
 
       <!-- ── HEADER ── -->
-      <header class="flex justify-between items-start px-6 py-4 pb-2 border-b-4 border-qurban-dark flex-shrink-0">
+      <header class="flex justify-between items-start px-6 py-3 pb-2 border-b-4 border-qurban-dark flex-shrink-0">
 
         <div class="flex items-center w-1/4">
           <div class="logo-img-wrapper">
@@ -297,8 +264,8 @@ function statusIcon(status) {
 
         <div class="text-center w-2/4 pt-1">
           <h2 class="text-xl font-bold text-qurban-dark tracking-wider mb-1">MONITOR ALUR KERJA (WORKFLOW)</h2>
-          <h1 class="text-7xl font-extrabold text-qurban-dark mb-3 drop-shadow-sm">HEWAN QURBAN</h1>
-          <div class="bg-qurban-dark text-white py-2 px-8 rounded-full inline-flex items-center gap-2 font-semibold text-lg shadow-md">
+          <h1 class="text-6xl font-extrabold text-qurban-dark mb-2 drop-shadow-sm">HEWAN QURBAN</h1>
+          <div class="bg-qurban-dark text-white py-1.5 px-8 rounded-full inline-flex items-center gap-2 font-semibold text-base shadow-md">
             <i class="fas fa-calendar-alt"></i>
             Hari Idul Adha, 10 Dzulhijjah 1447H / 27 Mei 2026
           </div>
@@ -326,28 +293,28 @@ function statusIcon(status) {
       </header>
 
       <!-- ── WORKFLOW STEPS + PROGRESS BAR ── -->
-      <div class="flex justify-between items-center px-6 py-4 bg-slate-100 border-b-2 border-slate-300 gap-6 flex-shrink-0">
+      <div class="flex justify-between items-center px-6 py-2 bg-slate-100 border-b-2 border-slate-300 gap-4 flex-shrink-0">
 
         <!-- Step 1: Kedatangan -->
         <div
-          :class="['flex-1 border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative transition-colors duration-500',
+          :class="['flex-1 border-2 border-slate-300 rounded-xl p-3 flex items-center gap-3 shadow-md step-card relative transition-colors duration-500',
             progKedatangan.pct === 100 ? 'bg-emerald-800 text-white' : 'bg-white text-slate-700']"
         >
-          <div :class="['w-20 h-20 rounded-full flex items-center justify-center text-4xl shrink-0',
+          <div :class="['w-14 h-14 rounded-full flex items-center justify-center text-3xl shrink-0',
             progKedatangan.pct === 100 ? 'bg-white text-emerald-800' : 'bg-step-blue text-white']">
             <i class="fas fa-truck"></i>
           </div>
           <div class="leading-tight flex-grow">
-            <div :class="['font-black text-2xl', progKedatangan.pct === 100 ? 'text-white' : 'text-step-blue']">1. KEDATANGAN</div>
-            <div :class="['text-base font-bold mt-1', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Hewan tiba di lokasi</div>
-            <div class="mt-2 w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+            <div :class="['font-black text-lg', progKedatangan.pct === 100 ? 'text-white' : 'text-step-blue']">1. KEDATANGAN</div>
+            <div :class="['text-xs font-bold mt-0.5', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Hewan tiba di lokasi</div>
+            <div class="mt-1.5 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                class="h-2.5 rounded-full transition-all duration-700"
+                class="h-2 rounded-full transition-all duration-700"
                 :class="progKedatangan.pct === 100 ? 'bg-white' : 'bg-step-blue'"
                 :style="{ width: progKedatangan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-sm font-bold mt-1', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-xs font-bold mt-0.5', progKedatangan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progKedatangan.pct }}% &nbsp;|&nbsp; {{ progKedatangan.frac }} HEWAN
             </div>
           </div>
@@ -356,24 +323,24 @@ function statusIcon(status) {
 
         <!-- Step 2: Sembelihan -->
         <div
-          :class="['flex-1 border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative ml-4 transition-colors duration-500',
+          :class="['flex-1 border-2 border-slate-300 rounded-xl p-3 flex items-center gap-3 shadow-md step-card relative ml-3 transition-colors duration-500',
             progSembelihan.pct === 100 ? 'bg-emerald-800 text-white' : 'bg-white text-slate-700']"
         >
-          <div :class="['w-20 h-20 rounded-full flex items-center justify-center text-4xl shrink-0',
+          <div :class="['w-14 h-14 rounded-full flex items-center justify-center text-3xl shrink-0',
             progSembelihan.pct === 100 ? 'bg-white text-emerald-800' : 'bg-step-green text-white']">
             <i class="fas fa-utensils"></i>
           </div>
           <div class="leading-tight flex-grow">
-            <div :class="['font-black text-2xl', progSembelihan.pct === 100 ? 'text-white' : 'text-step-green']">2. SEMBELIHAN</div>
-            <div :class="['text-base font-bold mt-1', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Proses penyembelihan</div>
-            <div class="mt-2 w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+            <div :class="['font-black text-lg', progSembelihan.pct === 100 ? 'text-white' : 'text-step-green']">2. SEMBELIHAN</div>
+            <div :class="['text-xs font-bold mt-0.5', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Proses penyembelihan</div>
+            <div class="mt-1.5 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                class="h-2.5 rounded-full transition-all duration-700"
+                class="h-2 rounded-full transition-all duration-700"
                 :class="progSembelihan.pct === 100 ? 'bg-white' : 'bg-step-green'"
                 :style="{ width: progSembelihan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-sm font-bold mt-1', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-xs font-bold mt-0.5', progSembelihan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progSembelihan.pct }}% &nbsp;|&nbsp; {{ progSembelihan.frac }} HEWAN
             </div>
           </div>
@@ -382,50 +349,50 @@ function statusIcon(status) {
 
         <!-- Step 3: Pengulitan -->
         <div
-          :class="['flex-1 border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md step-card relative ml-4 transition-colors duration-500',
+          :class="['flex-1 border-2 border-slate-300 rounded-xl p-3 flex items-center gap-3 shadow-md step-card relative ml-3 transition-colors duration-500',
             progPengulitan.pct === 100 ? 'bg-emerald-800 text-white' : 'bg-white text-slate-700']"
         >
-          <div :class="['w-20 h-20 rounded-full flex items-center justify-center text-4xl shrink-0',
+          <div :class="['w-14 h-14 rounded-full flex items-center justify-center text-3xl shrink-0',
             progPengulitan.pct === 100 ? 'bg-white text-emerald-800' : 'bg-step-orange text-white']">
             <i class="fas fa-scroll"></i>
           </div>
           <div class="leading-tight flex-grow">
-            <div :class="['font-black text-2xl', progPengulitan.pct === 100 ? 'text-white' : 'text-step-orange']">3. PENGULITAN</div>
-            <div :class="['text-base font-bold mt-1', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Pembersihan kulit</div>
-            <div class="mt-2 w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+            <div :class="['font-black text-lg', progPengulitan.pct === 100 ? 'text-white' : 'text-step-orange']">3. PENGULITAN</div>
+            <div :class="['text-xs font-bold mt-0.5', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Pembersihan kulit</div>
+            <div class="mt-1.5 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                class="h-2.5 rounded-full transition-all duration-700"
+                class="h-2 rounded-full transition-all duration-700"
                 :class="progPengulitan.pct === 100 ? 'bg-white' : 'bg-step-orange'"
                 :style="{ width: progPengulitan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-sm font-bold mt-1', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-xs font-bold mt-0.5', progPengulitan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progPengulitan.pct }}% &nbsp;|&nbsp; {{ progPengulitan.frac }} HEWAN
             </div>
           </div>
           <div class="step-arrow"></div>
         </div>
 
-        <!-- Step 4: Pengemasan -->
+        <!-- Step 4: Siap Distribusi -->
         <div
-          :class="['flex-1 border-2 border-slate-300 rounded-xl p-4 flex items-center gap-4 shadow-md ml-4 transition-colors duration-500',
+          :class="['flex-1 border-2 border-slate-300 rounded-xl p-3 flex items-center gap-3 shadow-md ml-3 transition-colors duration-500',
             progPengemasan.pct === 100 ? 'bg-emerald-800 text-white' : 'bg-white text-slate-700']"
         >
-          <div :class="['w-20 h-20 rounded-full flex items-center justify-center text-4xl shrink-0',
+          <div :class="['w-14 h-14 rounded-full flex items-center justify-center text-3xl shrink-0',
             progPengemasan.pct === 100 ? 'bg-white text-emerald-800' : 'bg-step-purple text-white']">
             <i class="fas fa-box-open"></i>
           </div>
           <div class="leading-tight flex-grow">
-            <div :class="['font-black text-2xl', progPengemasan.pct === 100 ? 'text-white' : 'text-step-purple']">4. PENGEMASAN</div>
-            <div :class="['text-base font-bold mt-1', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Pengemasan daging</div>
-            <div class="mt-2 w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+            <div :class="['font-black text-lg', progPengemasan.pct === 100 ? 'text-white' : 'text-step-purple']">4. SIAP DISTRIBUSI</div>
+            <div :class="['text-xs font-bold mt-0.5', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-gray-600']">Pengemasan daging</div>
+            <div class="mt-1.5 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                class="h-2.5 rounded-full transition-all duration-700"
+                class="h-2 rounded-full transition-all duration-700"
                 :class="progPengemasan.pct === 100 ? 'bg-white' : 'bg-step-purple'"
                 :style="{ width: progPengemasan.pct + '%' }"
               ></div>
             </div>
-            <div :class="['text-sm font-bold mt-1', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
+            <div :class="['text-xs font-bold mt-0.5', progPengemasan.pct === 100 ? 'text-emerald-200' : 'text-slate-500']">
               PROSES: {{ progPengemasan.pct }}% &nbsp;|&nbsp; {{ progPengemasan.frac }} HEWAN
             </div>
           </div>
@@ -434,12 +401,7 @@ function statusIcon(status) {
       </div>
 
       <!-- ── DATA TABLE ── -->
-      <!--
-        PERBAIKAN A.4: Tidak ada v-if filter hiddenGroupIds di sini.
-        paginatedData sudah bersih karena bersumber dari chunkedGrup
-        yang memfilter hidden IDs sejak awal di level computed script.
-      -->
-      <div class="flex-grow px-6 py-1 overflow-hidden flex flex-col bg-white" style="height: calc(100vh - 450px); min-height: 0;">
+      <div class="flex-grow px-6 py-1 overflow-hidden flex flex-col bg-white" style="height: calc(100vh - 420px); min-height: 0;">
         <table class="w-full qurban-table table-fixed h-full">
           <colgroup>
             <col style="width:4%"  />
@@ -454,78 +416,74 @@ function statusIcon(status) {
           </colgroup>
           <thead>
             <tr>
-              <th>No</th>
-              <th>ID HEWAN</th>
-              <th>JENIS HEWAN</th>
-              <th>PEMILIK / PENYUMBANG</th>
-              <th class="bg-step-blue">KEDATANGAN</th>
-              <th class="bg-step-green">SEBELIHAN</th>
-              <th class="bg-step-orange">PENGULITAN</th>
-              <th class="bg-step-purple">PENGEMASAN</th>
-              <th class="bg-slate-700">KETERANGAN</th>
+              <th class="py-1.5 text-sm">No</th>
+              <th class="py-1.5 text-sm">ID HEWAN</th>
+              <th class="py-1.5 text-sm">JENIS HEWAN</th>
+              <th class="py-1.5 text-sm">SOHIBUL QURBAN</th>
+              <th class="py-1.5 text-sm bg-step-blue">KEDATANGAN</th>
+              <th class="py-1.5 text-sm bg-step-green">SEMBELIHAN</th>
+              <th class="py-1.5 text-sm bg-step-orange">PENGULITAN</th>
+              <th class="py-1.5 text-sm bg-step-purple">SIAP DISTRIBUSI</th>
+              <th class="py-1.5 text-sm bg-slate-700">KETERANGAN</th>
             </tr>
           </thead>
-          <!--
-            tbody: kelas animate-shimmer diaktifkan reaktif saat isShimmering = true.
-            Sinar kilauan menyapu dari kiri ke kanan bersamaan dengan data baru muncul.
-          -->
           <tbody :class="{ 'animate-shimmer': isShimmering }">
             <tr
               v-for="(row, i) in paginatedData"
               :key="`row-${activePage}-${row.id}`"
-              :style="{ height: 'calc(100%/6)' }"
+              :style="{ height: 'calc(100%/10)' }"
               :class="[i % 2 === 1 ? 'bg-slate-100' : 'bg-white', 'relative overflow-hidden']"
             >
-              <td>
-                <div class="animate-text-reveal w-full flex justify-center items-center">
+              <td class="py-0.5">
+                <div class="animate-text-reveal w-full flex justify-center items-center text-sm">
                   {{ row.displayIndex }}
                 </div>
               </td>
-              <td class="text-qurban-dark font-black">
-                <div class="animate-text-reveal w-full flex justify-center items-center">
+              <td class="text-qurban-dark font-black py-0.5">
+                <div class="animate-text-reveal w-full flex justify-center items-center text-lg">
                   {{ row.idGrup }}
                 </div>
               </td>
-              <td class="capitalize">
-                <div class="animate-text-reveal w-full flex justify-center items-center">
+              <td class="capitalize py-0.5">
+                <div class="animate-text-reveal w-full flex justify-center items-center text-lg">
                   <span>{{ row.animalName }}</span>
                 </div>
               </td>
-              <td class="text-left px-4 font-bold tracking-wide truncate">
-                <div class="animate-text-reveal w-full truncate text-left px-2">
+              <td class="text-left px-4 font-bold tracking-wide truncate py-0.5">
+                <div class="animate-text-reveal w-full truncate text-left px-2 text-lg">
                   {{ row.owner }}
                 </div>
               </td>
-              <td>
+              <td class="py-0.5">
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  <span :class="['px-3 py-1.5 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s1)]">
+                  <span :class="['px-2 py-1 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s1)]">
                     <i :class="statusIcon(row.s1)"></i>{{ row.s1 }}
                   </span>
                 </div>
               </td>
-              <td>
+              <td class="py-0.5">
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  <span :class="['px-3 py-1.5 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s2)]">
+                  <span :class="['px-2 py-1 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s2)]">
                     <i :class="statusIcon(row.s2)"></i>{{ row.s2 }}
                   </span>
                 </div>
               </td>
-              <td>
+              <td class="py-0.5">
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  <span :class="['px-3 py-1.5 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s3)]">
+                  <span :class="['px-2 py-1 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s3)]">
                     <i :class="statusIcon(row.s3)"></i>{{ row.s3 }}
                   </span>
                 </div>
               </td>
-              <td>
+              <td class="py-0.5">
                 <div class="animate-text-reveal w-full flex justify-center items-center">
-                  <span :class="['px-3 py-1.5 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s4)]">
+                  <span :class="['px-2 py-1 rounded-full font-black text-lg inline-flex items-center', statusClass(row.s4)]">
                     <i :class="statusIcon(row.s4)"></i>{{ row.s4 }}
                   </span>
                 </div>
               </td>
-              <td class="text-left px-3 text-slate-600 font-semibold truncate">
-                <div class="animate-text-reveal w-full truncate text-sm italic">
+              <td class="text-left px-3 text-slate-600 font-semibold truncate py-0.5">
+                <div class="animate-text-reveal w-full truncate text-xs italic">
                   {{ row.notes }}
                 </div>
               </td>
@@ -535,42 +493,38 @@ function statusIcon(status) {
       </div>
 
       <!-- ── BOTTOM SUMMARY ── -->
-      <div class="px-6 py-3 flex gap-6 flex-shrink-0 bg-slate-50 border-t-2 border-slate-200" style="height: 300px;">
+      <div class="px-6 py-2 flex gap-4 flex-shrink-0 bg-slate-50 border-t-2 border-slate-200" style="height: 260px;">
 
         <!-- Kiri: Ringkasan Total Hewan -->
         <div class="w-1/4 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
-          <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">RINGKASAN TOTAL HEWAN</div>
-          <div class="flex p-4 items-center justify-between h-full">
+          <div class="bg-qurban-dark text-white text-center py-1.5 font-extrabold uppercase text-base tracking-wider">RINGKASAN TOTAL HEWAN</div>
+          <div class="flex p-3 items-center justify-between h-full">
             <div class="text-center w-1/2">
-              <div class="text-8xl font-black text-qurban-dark leading-none">{{ totalHewan }}</div>
-              <div class="text-base font-black text-gray-500 mt-2 tracking-wide">TOTAL SOHIBUL QURBAN</div>
-              <div class="flex justify-center gap-3 mt-2">
+              <div class="text-6xl font-black text-qurban-dark leading-none">{{ totalHewan }}</div>
+              <div class="text-xs font-black text-gray-500 mt-1 tracking-wide">TOTAL SOHIBUL QURBAN</div>
+              <div class="flex justify-center gap-3 mt-1.5">
                 <div class="text-center">
-                  <div class="text-2xl font-black text-step-blue">{{ totalSapi }}</div>
+                  <div class="text-xl font-black text-step-blue">{{ totalSapi }}</div>
                   <div class="text-xs font-bold text-gray-400 tracking-wide">SAPI</div>
                 </div>
                 <div class="text-center">
-                  <div class="text-2xl font-black text-step-green">{{ totalDomba }}</div>
-                  <div class="text-xs font-bold text-gray-400 tracking-wide">DOMBA</div>
-                </div>
-                <div class="text-center">
-                  <div class="text-2xl font-black text-step-orange">{{ totalKambing }}</div>
-                  <div class="text-xs font-bold text-gray-400 tracking-wide">KAMBING</div>
+                  <div class="text-xl font-black text-step-green">{{ totalKambingDomba }}</div>
+                  <div class="text-xs font-bold text-gray-400 tracking-wide">DOMBA / KAMBING</div>
                 </div>
               </div>
             </div>
-            <div class="w-1/2 flex flex-col gap-2 font-bold text-lg border-l-2 border-slate-200 pl-4">
+            <div class="w-1/2 flex flex-col gap-1.5 font-bold text-base border-l-2 border-slate-200 pl-3">
               <div class="flex items-center justify-between">
-                <span class="text-base font-black text-gray-500">SELESAI</span>
-                <span class="text-3xl font-black text-qurban-teal">{{ summarySelesai }}</span>
+                <span class="text-xs font-black text-gray-500">SELESAI</span>
+                <span class="text-2xl font-black text-qurban-teal">{{ summarySelesai }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-base font-black text-gray-500">PROSES</span>
-                <span class="text-3xl font-black text-qurban-orange">{{ summaryProses }}</span>
+                <span class="text-xs font-black text-gray-500">PROSES</span>
+                <span class="text-2xl font-black text-qurban-orange">{{ summaryProses }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-base font-black text-gray-500">BELUM</span>
-                <span class="text-3xl font-black text-qurban-red">{{ summaryBelum }}</span>
+                <span class="text-xs font-black text-gray-500">BELUM</span>
+                <span class="text-2xl font-black text-qurban-red">{{ summaryBelum }}</span>
               </div>
             </div>
           </div>
@@ -578,78 +532,77 @@ function statusIcon(status) {
 
         <!-- Tengah: Progress Setiap Tahap -->
         <div class="flex-grow border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden relative shadow-sm">
-          <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">PROGRESS SETIAP TAHAP</div>
-          <div class="flex justify-around items-center h-full pt-2 pb-6">
+          <div class="bg-qurban-dark text-white text-center py-1.5 font-extrabold uppercase text-base tracking-wider">PROGRESS SETIAP TAHAP</div>
+          <div class="flex justify-around items-center h-full pt-1 pb-5">
 
             <div class="text-center flex flex-col items-center justify-center">
-              <div class="text-step-blue font-black text-base tracking-wide mb-1">1. KEDATANGAN</div>
+              <div class="text-step-blue font-black text-sm tracking-wide mb-1">1. KEDATANGAN</div>
               <div
                 class="progress-circle mb-1"
                 :style="`background: conic-gradient(#2b78e4 ${progKedatangan.pct}%, #e2e8f0 0); color: #2b78e4;`"
               ><span>{{ progKedatangan.pct }}%</span></div>
-              <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
-                <i class="fas fa-truck text-step-blue text-sm"></i> {{ progKedatangan.frac }}
+              <div class="text-qurban-dark font-black text-lg flex items-center gap-1 mt-1">
+                <i class="fas fa-truck text-step-blue text-xs"></i> {{ progKedatangan.frac }}
               </div>
             </div>
 
             <div class="text-center flex flex-col items-center justify-center">
-              <div class="text-step-green font-black text-base tracking-wide mb-1">2. SEMBELIHAN</div>
+              <div class="text-step-green font-black text-sm tracking-wide mb-1">2. SEMBELIHAN</div>
               <div
                 class="progress-circle mb-1"
                 :style="`background: conic-gradient(#27a844 ${progSembelihan.pct}%, #e2e8f0 0); color: #27a844;`"
               ><span>{{ progSembelihan.pct }}%</span></div>
-              <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
-                <i class="fas fa-utensils text-step-green text-sm"></i> {{ progSembelihan.frac }}
+              <div class="text-qurban-dark font-black text-lg flex items-center gap-1 mt-1">
+                <i class="fas fa-utensils text-step-green text-xs"></i> {{ progSembelihan.frac }}
               </div>
             </div>
 
             <div class="text-center flex flex-col items-center justify-center">
-              <div class="text-step-orange font-black text-base tracking-wide mb-1">3. PENGULITAN</div>
+              <div class="text-step-orange font-black text-sm tracking-wide mb-1">3. PENGULITAN</div>
               <div
                 class="progress-circle mb-1"
                 :style="`background: conic-gradient(#fd7e14 ${progPengulitan.pct}%, #e2e8f0 0); color: #fd7e14;`"
               ><span>{{ progPengulitan.pct }}%</span></div>
-              <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
-                <i class="fas fa-scroll text-step-orange text-sm"></i> {{ progPengulitan.frac }}
+              <div class="text-qurban-dark font-black text-lg flex items-center gap-1 mt-1">
+                <i class="fas fa-scroll text-step-orange text-xs"></i> {{ progPengulitan.frac }}
               </div>
             </div>
 
             <div class="text-center flex flex-col items-center justify-center">
-              <div class="text-step-purple font-black text-base tracking-wide mb-1">4. PENGEMASAN</div>
+              <div class="text-step-purple font-black text-sm tracking-wide mb-1">4. SIAP DISTRIBUSI</div>
               <div
                 class="progress-circle mb-1"
                 :style="`background: conic-gradient(#6f42c1 ${progPengemasan.pct}%, #e2e8f0 0); color: #6f42c1;`"
               ><span>{{ progPengemasan.pct }}%</span></div>
-              <div class="text-qurban-dark font-black text-xl flex items-center gap-1 mt-1">
-                <i class="fas fa-box-open text-step-purple text-sm"></i> {{ progPengemasan.frac }}
+              <div class="text-qurban-dark font-black text-lg flex items-center gap-1 mt-1">
+                <i class="fas fa-box-open text-step-purple text-xs"></i> {{ progPengemasan.frac }}
               </div>
             </div>
 
           </div>
           <div class="absolute bottom-1 left-0 right-0 text-center text-xs italic text-slate-400 font-bold tracking-wide">
-            *Data akan otomatis ter-update sesuai perkembangan di lapangan, bila merasa namanya tidak ada disini bisa hubungi Tim Qurban AhsanTV
+            *Data akan otomatis ter-update sesuai perkembangan di lapangan, <br>bila merasa namanya tidak ada disini bisa hubungi Tim Qurban AhsanTV
           </div>
         </div>
 
         <!-- Kanan: Keterangan Status + Info Halaman -->
         <div class="w-1/5 border-2 border-qurban-dark rounded-2xl flex flex-col bg-white overflow-hidden shadow-sm">
-          <div class="bg-qurban-dark text-white text-center py-2 font-extrabold uppercase text-lg tracking-wider">KETERANGAN STATUS</div>
-          <div class="p-4 flex flex-col gap-4 justify-center h-full">
-            <div class="flex items-center gap-4">
-              <i class="fas fa-check-circle text-3xl text-qurban-green shrink-0"></i>
-              <span class="font-bold text-slate-700 text-lg">Selesai</span>
+          <div class="bg-qurban-dark text-white text-center py-1.5 font-extrabold uppercase text-base tracking-wider">KETERANGAN STATUS</div>
+          <div class="p-3 flex flex-col gap-3 justify-center h-full">
+            <div class="flex items-center gap-3">
+              <i class="fas fa-check-circle text-2xl text-qurban-green shrink-0"></i>
+              <span class="font-bold text-slate-700 text-base">Selesai</span>
             </div>
-            <div class="flex items-center gap-4">
-              <i class="fas fa-clock text-3xl text-qurban-orange shrink-0"></i>
-              <span class="font-bold text-slate-700 text-lg">Sedang Proses</span>
+            <div class="flex items-center gap-3">
+              <i class="fas fa-clock text-2xl text-qurban-orange shrink-0"></i>
+              <span class="font-bold text-slate-700 text-base">Sedang Proses</span>
             </div>
-            <div class="flex items-center gap-4">
-              <i class="fas fa-times-circle text-3xl text-qurban-red shrink-0"></i>
-              <span class="font-bold text-slate-700 text-lg">Belum Dimulai</span>
+            <div class="flex items-center gap-3">
+              <i class="fas fa-times-circle text-2xl text-qurban-red shrink-0"></i>
+              <span class="font-bold text-slate-700 text-base">Belum Dimulai</span>
             </div>
-            <!-- Indikator halaman aktif — totalPages = chunkedGrup.length, selalu akurat -->
-            <div class="mt-2 pt-3 border-t border-slate-200 flex items-center gap-2">
-              <i class="fas fa-tv text-qurban-dark text-lg shrink-0"></i>
+            <div class="mt-1 pt-2 border-t border-slate-200 flex items-center gap-2">
+              <i class="fas fa-tv text-qurban-dark text-base shrink-0"></i>
               <span class="text-sm font-black text-slate-600">
                 HAL <span class="text-qurban-dark text-xl">{{ activePage }}</span>
                 <span class="text-xs text-slate-400 ml-1">/ {{ totalPages }}</span>
@@ -661,15 +614,15 @@ function statusIcon(status) {
       </div>
 
       <!-- ── FOOTER ── -->
-      <div class="bg-qurban-dark text-white p-3 flex justify-between items-center px-6 mt-auto flex-shrink-0">
+      <div class="bg-qurban-dark text-white p-2 flex justify-between items-center px-6 mt-auto flex-shrink-0">
         <div class="flex items-center gap-4 text-xl font-medium">
-          <i class="fas fa-book-open text-2xl text-qurban-orange"></i>
-          <span class="italic text-lg font-semibold">
+          <i class="fas fa-book-open text-xl text-qurban-orange"></i>
+          <span class="italic text-base font-semibold">
             "Maka laksanakanlah shalat karena Tuhanmu; dan berkurbanlah."
             <span class="text-sm text-slate-300 ml-2 font-normal">(QS. Al-Kautsar: 2)</span>
           </span>
         </div>
-        <div class="text-right leading-tight text-md font-bold">
+        <div class="text-right leading-tight text-sm font-bold">
           <div>Terima kasih atas partisipasi dan kepercayaannya.</div>
         </div>
       </div>
@@ -710,7 +663,7 @@ html, body {
   color: white;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   padding: 1vh 8px;
   border: 2px solid #1a6b52;
   text-align: center;

@@ -1,3 +1,353 @@
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import * as XLSX from 'xlsx'
+
+const supabase = useSupabaseClient()
+
+useHead({
+  title: 'Qurban Admin Panel',
+  link: [
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
+    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' },
+  ],
+})
+
+const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
+const STATUS_COLUMNS = [
+  { field: 'status_kedatangan', label: 'Kedatangan',     options: ['Belum', 'Diterima'] },
+  { field: 'status_sembelihan', label: 'Sembelihan',      options: STATUS_OPTIONS },
+  { field: 'status_pengulitan', label: 'Pengulitan',      options: STATUS_OPTIONS },
+  { field: 'status_pengemasan', label: 'Siap Distribusi', options: STATUS_OPTIONS },
+]
+
+const ROWS_PER_PAGE = 10  // ← diubah dari 6 → 10
+const AUTO_INTERVAL = 6
+
+// ── Dark Mode ──
+const isDark = ref(false)
+
+function toggleTheme() {
+  isDark.value = !isDark.value
+  document.documentElement.classList.toggle('dark', isDark.value)
+  localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
+}
+
+// ── Deteksi Perangkat ──
+const isMobileDevice = ref(false)
+
+function detectDevice() {
+  if (typeof window === 'undefined') return
+  isMobileDevice.value =
+    window.innerWidth < 768 ||
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
+// ── Fetch Data ──
+const tableKey = ref(0)
+const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
+  const { data, error } = await supabase
+    .from('grup_hewan')
+    .select('*, sohibul_qurban(*)')
+    .order('id_grup', { ascending: true })
+  if (error) { console.error('Supabase fetch error:', error); return [] }
+  return data ?? []
+})
+
+// ── State Halaman ──
+const activePage  = ref(1)
+const countdown   = ref(AUTO_INTERVAL)
+let   masterTimer = null
+
+// ── Channel ──
+const pageSyncChannel = supabase.channel('page-sync-channel')
+
+function broadcastPageChanged(page) {
+  pageSyncChannel.send({
+    type: 'broadcast', event: 'PAGE_CHANGED', payload: { page },
+  })
+}
+
+function broadcastManualPageChange(page) {
+  pageSyncChannel.send({
+    type: 'broadcast', event: 'MANUAL_PAGE_CHANGE', payload: { page },
+  })
+}
+
+function triggerRemoteReload() {
+  pageSyncChannel.send({
+    type: 'broadcast', event: 'remote-reload', payload: { ts: Date.now() },
+  })
+}
+
+// ── Hide / Show Grup ──
+const hiddenGroupIds = ref([])
+
+function toggleHideGroup(idGrup) {
+  const idx = hiddenGroupIds.value.indexOf(idGrup)
+  if (idx !== -1) hiddenGroupIds.value.splice(idx, 1)
+  else            hiddenGroupIds.value.push(idGrup)
+  pageSyncChannel.send({
+    type: 'broadcast', event: 'update-hidden-groups',
+    payload: { hiddenIds: hiddenGroupIds.value },
+  })
+}
+
+// ── chunkedGrup ──
+const chunkedGrup = computed(() => {
+  const list = dataGrup.value ?? []
+
+  const allRows = []
+  for (const grup of list) {
+    const sohibulList = grup.sohibul_qurban ?? []
+    if (sohibulList.length === 0) {
+      allRows.push({ _idGrup: grup.id_grup })
+    } else {
+      for (const s of sohibulList) {
+        allRows.push({ _idGrup: grup.id_grup, _nama: s.nama })
+      }
+    }
+  }
+
+  const activeRows = allRows.filter(row =>
+    !hiddenGroupIds.value.includes(String(row._idGrup ?? ''))
+  )
+
+  const pages = []
+  for (let i = 0; i < activeRows.length; i += ROWS_PER_PAGE) {
+    pages.push(activeRows.slice(i, i + ROWS_PER_PAGE))
+  }
+  return pages
+})
+
+const totalPages = computed(() => chunkedGrup.value.length || 1)
+
+// ── Navigasi Manual ──
+function setActivePage(p) {
+  const target = Math.max(1, Math.min(p, totalPages.value))
+  if (isMobileDevice.value) {
+    broadcastManualPageChange(target)
+    console.log('[Admin-HP] MANUAL_PAGE_CHANGE →', target)
+  } else {
+    activePage.value = target
+    countdown.value  = AUTO_INTERVAL
+    restartMasterInterval()
+    broadcastPageChanged(target)
+    console.log('[Admin-Laptop] Navigasi manual →', target)
+  }
+}
+
+// ── Master Interval (Laptop only) ──
+function startMasterInterval() {
+  if (isMobileDevice.value) {
+    console.log('[Admin] Mode HP — timer dinonaktifkan.')
+    return
+  }
+  if (masterTimer) return
+  masterTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      activePage.value = activePage.value >= totalPages.value ? 1 : activePage.value + 1
+      broadcastPageChanged(activePage.value)
+      countdown.value = AUTO_INTERVAL
+      console.log('[Admin-Laptop] Auto-advance →', activePage.value)
+    }
+  }, 1000)
+}
+
+function stopMasterInterval() {
+  if (masterTimer) { clearInterval(masterTimer); masterTimer = null }
+}
+
+function restartMasterInterval() {
+  stopMasterInterval()
+  countdown.value = AUTO_INTERVAL
+  startMasterInterval()
+}
+
+// ── Realtime & Lifecycle ──
+let realtimeChannel = null
+
+onMounted(() => {
+  detectDevice()
+
+  const saved = localStorage.getItem('color-theme')
+  isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.classList.toggle('dark', isDark.value)
+
+  pageSyncChannel
+    .on('broadcast', { event: 'PAGE_CHANGED' }, (msg) => {
+      if (!isMobileDevice.value) return
+      const targetPage = msg?.payload?.page
+      if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
+      activePage.value = targetPage
+      console.log('[Admin-HP] Sinkron dari Laptop →', targetPage)
+    })
+    .on('broadcast', { event: 'MANUAL_PAGE_CHANGE' }, (msg) => {
+      if (isMobileDevice.value) return
+      const targetPage = msg?.payload?.page
+      if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
+      activePage.value = targetPage
+      restartMasterInterval()
+      broadcastPageChanged(activePage.value)
+      console.log('[Admin-Laptop] MANUAL_PAGE_CHANGE dari HP →', targetPage)
+    })
+    .subscribe((status) => {
+      console.log('[Admin] pageSyncChannel:', status)
+      if (status === 'SUBSCRIBED') startMasterInterval()
+    })
+
+  realtimeChannel = supabase
+    .channel('admin-grup-hewan-changes')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'grup_hewan' },
+      (payload) => {
+        console.log('[Admin] DB change:', payload)
+        refresh().then(() => { tableKey.value++ })
+      }
+    )
+    .subscribe((status) => { console.log('[Admin] realtimeChannel:', status) })
+})
+
+onUnmounted(() => {
+  stopMasterInterval()
+  if (realtimeChannel) supabase.removeChannel(realtimeChannel)
+  supabase.removeChannel(pageSyncChannel)
+})
+
+// ── Search ──
+const searchQuery = ref('')
+
+const filteredRows = computed(() => {
+  if (!dataGrup.value) return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return dataGrup.value
+  return dataGrup.value.filter(r =>
+    r.id_grup?.toLowerCase().includes(q)        ||
+    r.jenis_hewan?.toLowerCase().includes(q)    ||
+    r.label_tampilan?.toLowerCase().includes(q) ||
+    r.keterangan?.toLowerCase().includes(q)
+  )
+})
+
+// ── Stat Cards ──
+const stats = computed(() => {
+  const list    = dataGrup.value ?? []
+  const total   = list.length
+  const selesai = list.filter(r => r.status_pengemasan === 'Selesai').length
+  const proses  = list.filter(r =>
+    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].some(s => s === 'Proses')
+    && r.status_pengemasan !== 'Selesai'
+  ).length
+  const belum = list.filter(r =>
+    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].every(s => s === 'Belum')
+  ).length
+  return [
+    { label: 'Total Grup Hewan',    value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'     },
+    { label: 'Sedang Diproses',     value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'     },
+    { label: 'Belum Mulai',         value: belum,   colorClass: 'text-red-500 dark:text-red-400'         },
+  ]
+})
+
+// ── Icon Hewan ──
+function animalIconClass(jenis) {
+  const j = String(jenis ?? '').toLowerCase()
+  if (j === 'sapi')    return 'fa-cow text-emerald-600'
+  if (j === 'kambing') return 'fa-horse-head text-amber-600'
+  return 'fa-sheep text-indigo-500'
+}
+
+// ── Status Button Ripple + Update ──
+function handleStatusClick(event, idGrup, kolom, statusBaru) {
+  const btn    = event.currentTarget
+  const ripple = document.createElement('span')
+  ripple.classList.add('btn-ripple')
+  const rect = btn.getBoundingClientRect()
+  const size = Math.max(rect.width, rect.height)
+  ripple.style.width  = ripple.style.height = size + 'px'
+  ripple.style.left   = (event.clientX - rect.left - size / 2) + 'px'
+  ripple.style.top    = (event.clientY - rect.top  - size / 2) + 'px'
+  btn.appendChild(ripple)
+  ripple.addEventListener('animationend', () => ripple.remove())
+  updateStatus(idGrup, kolom, statusBaru)
+}
+
+async function updateStatus(idGrup, kolom, statusBaru) {
+  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
+  if (row) row[kolom] = statusBaru
+  const { error } = await supabase
+    .from('grup_hewan')
+    .update({ [kolom]: statusBaru })
+    .eq('id_grup', idGrup)
+  if (error) {
+    console.error('updateStatus error:', error)
+    refresh().then(() => { tableKey.value++ })
+  } else {
+    refresh().then(() => { tableKey.value++ })
+  }
+}
+
+async function updateKeterangan(idGrup, teksBaru) {
+  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
+  if (row) row.keterangan = teksBaru
+  const { error } = await supabase
+    .from('grup_hewan')
+    .update({ keterangan: teksBaru })
+    .eq('id_grup', idGrup)
+  if (error) {
+    console.error('updateKeterangan error:', error)
+    refresh().then(() => { tableKey.value++ })
+  } else {
+    refresh().then(() => { tableKey.value++ })
+  }
+}
+
+// ── Export to Excel ──
+function exportToExcel() {
+  const shohibulRows = []
+  let noUrut = 1
+
+  filteredRows.value.forEach(grup => {
+    const labelGrupValue = grup.jenis_hewan?.toLowerCase() === 'sapi'
+      ? (grup.label_tampilan ?? '-') : '-'
+
+    const baseRow = {
+      'ID Hewan'              : grup.id_grup,
+      'Jenis Hewan'           : grup.jenis_hewan,
+      'Label Grup'            : labelGrupValue,
+      'Status Kedatangan'     : grup.status_kedatangan || 'Belum',
+      'Status Sembelih'       : grup.status_sembelihan || 'Belum',
+      'Status Pengulitan'     : grup.status_pengulitan || 'Belum',
+      'Status Siap Distribusi': grup.status_pengemasan || 'Belum',
+      'Keterangan'            : grup.keterangan        || '-',
+    }
+
+    if (grup.sohibul_qurban?.length > 0) {
+      grup.sohibul_qurban.forEach(shohibul => {
+        shohibulRows.push({
+          'No': noUrut++,
+          'Nama Shohibul Qurban': shohibul.nama || '—',
+          ...baseRow,
+        })
+      })
+    } else {
+      shohibulRows.push({
+        'No': noUrut++,
+        'Nama Shohibul Qurban': '(Belum Ada Anggota)',
+        ...baseRow,
+      })
+    }
+  })
+
+  const worksheet = XLSX.utils.json_to_sheet(shohibulRows)
+  const workbook  = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifes Shohibul Qurban')
+  const tglCetak = new Date().toISOString().split('T')[0]
+  XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`)
+}
+</script>
+
 <template>
   <div class="flex h-screen overflow-hidden text-slate-800 bg-slate-50 dark:text-slate-100 dark:bg-slate-950 transition-colors duration-200">
 
@@ -70,7 +420,7 @@
                   class="w-1.5 h-1.5 rounded-full"
                   :class="isMobileDevice ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'"
                 ></span>
-                {{ isMobileDevice ? 'Sinkron dari Laptop' : 'Timer Aktif' }}
+                {{ isMobileDevice ? 'Sinkron dari Laptop' : '' }}
               </span>
             </div>
 
@@ -177,7 +527,7 @@
                       <i class="fa-solid fa-scissors mr-1 text-orange-500"></i>PENGULITAN
                     </th>
                     <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-44">
-                      <i class="fa-solid fa-box mr-1 text-purple-500"></i>PENGEMASAN
+                      <i class="fa-solid fa-box mr-1 text-purple-500"></i>SIAP DISTRIBUSI
                     </th>
                     <th class="py-3 px-4 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 w-52">KETERANGAN</th>
                   </tr>
@@ -272,396 +622,6 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import * as XLSX from 'xlsx'
-
-const supabase = useSupabaseClient()
-
-useHead({
-  title: 'Qurban Admin Panel',
-  link: [
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' },
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
-    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' },
-  ],
-})
-
-// ── Konstanta ──
-const STATUS_OPTIONS = ['Belum', 'Proses', 'Selesai']
-const STATUS_COLUMNS = [
-  { field: 'status_kedatangan', label: 'Kedatangan', options: ['Belum', 'Diterima'] },
-  { field: 'status_sembelihan', label: 'Sembelihan', options: STATUS_OPTIONS },
-  { field: 'status_pengulitan', label: 'Pengulitan', options: STATUS_OPTIONS },
-  { field: 'status_pengemasan', label: 'Pengemasan', options: STATUS_OPTIONS },
-]
-
-const ROWS_PER_PAGE = 6   // identik dengan index.vue
-const AUTO_INTERVAL = 6   // detik
-
-// ── Dark Mode ──
-const isDark = ref(false)
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('color-theme', isDark.value ? 'dark' : 'light')
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// A.1 — DETEKSI PERANGKAT: Mobile vs Desktop
-//
-// Dievaluasi SEKALI saat onMounted (bukan computed) karena:
-//   - window tidak tersedia saat SSR
-//   - User agent dan lebar layar tidak berubah selama sesi berjalan
-//
-// Aturan:
-//   isMobileDevice = true  → HP/tablet: timer DINONAKTIFKAN, mode sinkron pasif
-//   isMobileDevice = false → Laptop/desktop: timer AKTIF, menjadi master broadcast
-// ══════════════════════════════════════════════════════════════════════
-const isMobileDevice = ref(false)
-
-function detectDevice() {
-  if (typeof window === 'undefined') return
-  isMobileDevice.value =
-    window.innerWidth < 768 ||
-    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-}
-
-// ── Fetch Data ──
-const tableKey = ref(0)
-const { data: dataGrup, refresh } = await useAsyncData('grup_hewan', async () => {
-  const { data, error } = await supabase
-    .from('grup_hewan')
-    .select('*, sohibul_qurban(*)')
-    .order('id_grup', { ascending: true })
-  if (error) { console.error('Supabase fetch error:', error); return [] }
-  return data ?? []
-})
-
-// ── State Halaman ──
-const activePage  = ref(1)
-const countdown   = ref(AUTO_INTERVAL)
-let   masterTimer = null
-
-// ── Supabase Channel (dibuat satu kali, digunakan semua role) ──
-// Baik Laptop (master broadcaster) maupun HP (passive listener)
-// menggunakan channel yang SAMA agar payload terkirim/diterima dengan benar.
-const pageSyncChannel = supabase.channel('monitor-channel')
-
-// ── Broadcast Helpers ──
-function broadcastPage(page) {
-  pageSyncChannel.send({
-    type:    'broadcast',
-    event:   'master-page-change',
-    payload: { page },
-  })
-}
-
-function triggerRemoteReload() {
-  pageSyncChannel.send({
-    type:    'broadcast',
-    event:   'remote-reload',
-    payload: { ts: Date.now() },
-  })
-}
-
-// ── Hide / Show Grup ──
-const hiddenGroupIds = ref([])
-
-function toggleHideGroup(idGrup) {
-  const idx = hiddenGroupIds.value.indexOf(idGrup)
-  if (idx !== -1) {
-    hiddenGroupIds.value.splice(idx, 1)
-  } else {
-    hiddenGroupIds.value.push(idGrup)
-  }
-  pageSyncChannel.send({
-    type:    'broadcast',
-    event:   'update-hidden-groups',
-    payload: { hiddenIds: hiddenGroupIds.value },
-  })
-}
-
-// ── chunkedGrup ──
-// Logika identik dengan index.vue:
-//   1. Flatten dataGrup → baris sohibul qurban (satu baris per orang)
-//   2. Filter hidden IDs
-//   3. Potong per ROWS_PER_PAGE
-// Ini memastikan totalPages Admin = totalPages Monitor TV = selalu sinkron.
-const chunkedGrup = computed(() => {
-  const list = dataGrup.value ?? []
-
-  const allRows = []
-  for (const grup of list) {
-    const sohibulList = grup.sohibul_qurban ?? []
-    if (sohibulList.length === 0) {
-      allRows.push({ _idGrup: grup.id_grup })
-    } else {
-      for (const s of sohibulList) {
-        allRows.push({ _idGrup: grup.id_grup, _nama: s.nama })
-      }
-    }
-  }
-
-  const activeRows = allRows.filter(row =>
-    !hiddenGroupIds.value.includes(String(row._idGrup ?? ''))
-  )
-
-  const pages = []
-  for (let i = 0; i < activeRows.length; i += ROWS_PER_PAGE) {
-    pages.push(activeRows.slice(i, i + ROWS_PER_PAGE))
-  }
-  return pages
-})
-
-const totalPages = computed(() => chunkedGrup.value.length || 1)
-
-// Klik manual tombol halaman — tersedia untuk SEMUA perangkat
-function setActivePage(p) {
-  activePage.value = p
-  countdown.value  = AUTO_INTERVAL
-  broadcastPage(p)
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// A.2 — startMasterInterval (HANYA dijalankan di Laptop/Desktop)
-//
-// Jika isMobileDevice = true → fungsi langsung return tanpa membuat
-// setInterval. Tidak ada timer yang bisa freeze saat layar HP mati.
-//
-// Jika isMobileDevice = false (Laptop) → setInterval berjalan normal,
-// setiap detik mengurangi countdown, dan saat countdown habis:
-//   - A.3: activePage diinkrementasi (dengan validasi totalPages dinamis)
-//   - A.3: broadcastPage() mengirim nomor halaman baru ke semua subscriber
-// ══════════════════════════════════════════════════════════════════════
-function startMasterInterval() {
-  // GUARD: Nonaktifkan sepenuhnya di perangkat mobile
-  if (isMobileDevice.value) {
-    console.log('[Admin] Mode HP terdeteksi — timer dinonaktifkan, hanya sinkron pasif.')
-    return
-  }
-
-  if (masterTimer) return
-  masterTimer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) {
-      // A.3: Validasi ke totalPages dinamis sebelum increment
-      if (activePage.value >= totalPages.value) {
-        activePage.value = 1
-      } else {
-        activePage.value++
-      }
-      // A.3: Broadcast nomor halaman baru ke TV Monitor & HP Admin
-      broadcastPage(activePage.value)
-      countdown.value = AUTO_INTERVAL
-    }
-  }, 1000)
-}
-
-function stopMasterInterval() {
-  if (masterTimer) { clearInterval(masterTimer); masterTimer = null }
-}
-
-// ── Realtime & Lifecycle ──
-let realtimeChannel = null
-
-onMounted(() => {
-  // Deteksi perangkat sebelum apapun (window sudah tersedia di onMounted)
-  detectDevice()
-
-  // Pulihkan tema
-  const saved = localStorage.getItem('color-theme')
-  isDark.value = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', isDark.value)
-
-  // ══════════════════════════════════════════════════════════════════
-  // A.4 — pageSyncChannel subscribe
-  //
-  // Laptop (master): subscribe → SUBSCRIBED → startMasterInterval()
-  //   Listener 'master-page-change' di sini tidak digunakan Laptop
-  //   untuk mengubah activePage-nya sendiri (broadcast tidak bounced
-  //   back ke pengirim oleh Supabase Realtime).
-  //
-  // HP (passive listener): subscribe → SUBSCRIBED → timer tidak jalan.
-  //   Tapi HP mendengarkan event 'master-page-change' yang dikirim
-  //   Laptop, lalu memperbarui activePage.value secara instan.
-  //   Hasilnya: HP selalu tahu halaman berapa yang sedang On-Air di TV.
-  // ══════════════════════════════════════════════════════════════════
-  pageSyncChannel
-    .on('broadcast', { event: 'master-page-change' }, (payload) => {
-      // Hanya HP yang perlu mendengarkan ini untuk sinkronisasi pasif.
-      // Laptop memperbarui activePage-nya sendiri langsung di interval.
-      if (!isMobileDevice.value) return
-
-      const targetPage = payload?.payload?.page ?? payload?.page
-      if (!targetPage || targetPage < 1 || targetPage > totalPages.value) return
-      activePage.value = targetPage
-      console.log('[Admin-HP] Halaman disinkronkan dari Laptop:', targetPage)
-    })
-    .subscribe((status) => {
-      console.log('[Admin] pageSyncChannel status:', status)
-      if (status === 'SUBSCRIBED') startMasterInterval()
-    })
-
-  // Realtime Postgres untuk refresh tabel saat data berubah
-  realtimeChannel = supabase
-    .channel('admin-grup-hewan-changes')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'grup_hewan' },
-      (payload) => {
-        console.log('[Admin] DB change:', payload)
-        refresh().then(() => { tableKey.value++ })
-      }
-    )
-    .subscribe((status) => {
-      console.log('[Admin] realtimeChannel status:', status)
-    })
-})
-
-onUnmounted(() => {
-  stopMasterInterval()
-  if (realtimeChannel) supabase.removeChannel(realtimeChannel)
-  supabase.removeChannel(pageSyncChannel)
-})
-
-// ── Search ──
-const searchQuery = ref('')
-
-const filteredRows = computed(() => {
-  if (!dataGrup.value) return []
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return dataGrup.value
-  return dataGrup.value.filter(r =>
-    r.id_grup?.toLowerCase().includes(q)        ||
-    r.jenis_hewan?.toLowerCase().includes(q)    ||
-    r.label_tampilan?.toLowerCase().includes(q) ||
-    r.keterangan?.toLowerCase().includes(q)
-  )
-})
-
-// ── Stat Cards ──
-const stats = computed(() => {
-  const list    = dataGrup.value ?? []
-  const total   = list.length
-  const selesai = list.filter(r => r.status_pengemasan === 'Selesai').length
-  const proses  = list.filter(r =>
-    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].some(s => s === 'Proses')
-    && r.status_pengemasan !== 'Selesai'
-  ).length
-  const belum = list.filter(r =>
-    [r.status_kedatangan, r.status_sembelihan, r.status_pengulitan, r.status_pengemasan].every(s => s === 'Belum')
-  ).length
-  return [
-    { label: 'Total Grup Hewan',    value: total,   colorClass: 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'Selesai Semua Tahap', value: selesai, colorClass: 'text-green-600 dark:text-green-400'     },
-    { label: 'Sedang Diproses',     value: proses,  colorClass: 'text-amber-600 dark:text-amber-400'     },
-    { label: 'Belum Mulai',         value: belum,   colorClass: 'text-red-500 dark:text-red-400'         },
-  ]
-})
-
-// ── Icon Hewan ──
-function animalIconClass(jenis) {
-  const j = String(jenis ?? '').toLowerCase()
-  if (j === 'sapi')    return 'fa-cow text-emerald-600'
-  if (j === 'kambing') return 'fa-horse-head text-amber-600'
-  return 'fa-sheep text-indigo-500'
-}
-
-// ── Status Button Ripple + Update ──
-function handleStatusClick(event, idGrup, kolom, statusBaru) {
-  const btn    = event.currentTarget
-  const ripple = document.createElement('span')
-  ripple.classList.add('btn-ripple')
-  const rect = btn.getBoundingClientRect()
-  const size = Math.max(rect.width, rect.height)
-  ripple.style.width  = ripple.style.height = size + 'px'
-  ripple.style.left   = (event.clientX - rect.left - size / 2) + 'px'
-  ripple.style.top    = (event.clientY - rect.top  - size / 2) + 'px'
-  btn.appendChild(ripple)
-  ripple.addEventListener('animationend', () => ripple.remove())
-  updateStatus(idGrup, kolom, statusBaru)
-}
-
-async function updateStatus(idGrup, kolom, statusBaru) {
-  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
-  if (row) row[kolom] = statusBaru
-
-  const { error } = await supabase
-    .from('grup_hewan')
-    .update({ [kolom]: statusBaru })
-    .eq('id_grup', idGrup)
-  if (error) {
-    console.error('updateStatus error:', error)
-    refresh().then(() => { tableKey.value++ })
-  } else {
-    refresh().then(() => { tableKey.value++ })
-  }
-}
-
-async function updateKeterangan(idGrup, teksBaru) {
-  const row = dataGrup.value?.find(r => r.id_grup === idGrup)
-  if (row) row.keterangan = teksBaru
-
-  const { error } = await supabase
-    .from('grup_hewan')
-    .update({ keterangan: teksBaru })
-    .eq('id_grup', idGrup)
-  if (error) {
-    console.error('updateKeterangan error:', error)
-    refresh().then(() => { tableKey.value++ })
-  } else {
-    refresh().then(() => { tableKey.value++ })
-  }
-}
-
-// ── Export to Excel ──
-function exportToExcel() {
-  const shohibulRows = []
-  let noUrut = 1
-
-  filteredRows.value.forEach(grup => {
-    const labelGrupValue = (grup.jenis_hewan?.toLowerCase() === 'sapi') ? (grup.label_tampilan ?? '-') : '-'
-
-    if (grup.sohibul_qurban?.length > 0) {
-      grup.sohibul_qurban.forEach(shohibul => {
-        shohibulRows.push({
-          'No'                  : noUrut++,
-          'Nama Shohibul Qurban': shohibul.nama          || '—',
-          'ID Hewan'            : grup.id_grup,
-          'Jenis Hewan'         : grup.jenis_hewan,
-          'Label Grup'          : labelGrupValue,
-          'Status Kedatangan'   : grup.status_kedatangan || 'Belum',
-          'Status Sembelih'     : grup.status_sembelihan || 'Belum',
-          'Status Pengulitan'   : grup.status_pengulitan || 'Belum',
-          'Status Pengemasan'   : grup.status_pengemasan || 'Belum',
-          'Keterangan'          : grup.keterangan        || '-',
-        })
-      })
-    } else {
-      shohibulRows.push({
-        'No'                  : noUrut++,
-        'Nama Shohibul Qurban': '(Belum Ada Anggota)',
-        'ID Hewan'            : grup.id_grup,
-        'Jenis Hewan'         : grup.jenis_hewan,
-        'Label Grup'          : labelGrupValue,
-        'Status Kedatangan'   : grup.status_kedatangan || 'Belum',
-        'Status Sembelih'     : grup.status_sembelihan || 'Belum',
-        'Status Pengulitan'   : grup.status_pengulitan || 'Belum',
-        'Status Pengemasan'   : grup.status_pengemasan || 'Belum',
-        'Keterangan'          : grup.keterangan        || '-',
-      })
-    }
-  })
-
-  const worksheet = XLSX.utils.json_to_sheet(shohibulRows)
-  const workbook  = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifes Shohibul Qurban')
-  const tglCetak = new Date().toISOString().split('T')[0]
-  XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`)
-}
-</script>
 
 <style scoped>
 .material-symbols-outlined {
