@@ -111,6 +111,7 @@ function goToSembelihan()  { router.push('/sembelihan'); }
 function goToPengulitan()  { router.push('/pengulitan'); }
 function goToPemantauan()  { router.push('/pemantauan'); }
 function goToScan()        { router.push('/scan'); }
+function goToLogin() { router.push('/team/login') }
 </script>
 
 <template>
@@ -124,20 +125,25 @@ function goToScan()        { router.push('/scan'); }
     <header class="page-header">
 
       <!-- Profile pill -->
-      <div class="flex items-center gap-2 bg-[#f0f4f8] rounded-full pl-1 pr-4 py-1 border border-[#E2E8F0]">
-        <div class="w-8 h-8 rounded-full bg-[#003527] flex items-center justify-center overflow-hidden flex-shrink-0">
-          <span class="material-symbols-outlined text-white text-[18px]" style="font-variation-settings:'FILL' 1;">person</span>
-        </div>
-        <div class="flex flex-col">
-          <template v-if="operatorName">
-            <span class="text-[10px] text-[#404944] font-medium leading-none uppercase tracking-wider mb-0.5">Operator</span>
-            <span class="text-xs font-semibold text-[#171c1f] leading-none">{{ operatorName }}</span>
-          </template>
-          <template v-else>
-            <span class="text-sm font-semibold text-[#171c1f] leading-none">Jamaah</span>
-          </template>
-        </div>
-      </div>
+<!-- Profile pill — replace the outer div with button, conditional @click -->
+<button
+  class="flex items-center gap-2 bg-[#f0f4f8] rounded-full pl-1 pr-4 py-1 border border-[#E2E8F0] -webkit-tap-highlight-color-transparent"
+  :class="{ 'cursor-default': operatorName, 'cursor-pointer active:bg-[#e4e9ed]': !operatorName }"
+  @click="!operatorName && goToLogin()"
+>
+  <div class="w-8 h-8 rounded-full bg-[#003527] flex items-center justify-center overflow-hidden flex-shrink-0">
+    <span class="material-symbols-outlined text-white text-[18px]" style="font-variation-settings:'FILL' 1;">person</span>
+  </div>
+  <div class="flex flex-col">
+    <template v-if="operatorName">
+      <span class="text-[10px] text-[#404944] font-medium leading-none uppercase tracking-wider mb-0.5">Operator</span>
+      <span class="text-xs font-semibold text-[#171c1f] leading-none">{{ operatorName }}</span>
+    </template>
+    <template v-else>
+      <span class="text-sm font-semibold text-[#171c1f] leading-none">Jamaah</span>
+    </template>
+  </div>
+</button>
 
       <!-- OP badge -->
       <div class="flex items-center gap-2 px-2 py-1 bg-[#eaeef2] rounded border border-[#bfc9c3]">
