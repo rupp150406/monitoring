@@ -1,0 +1,28 @@
+{
+  "searchFilter": {
+    "passed": true,
+    "initialRows": 20,
+    "filteredRows": 1,
+    "filteredSuccessfully": true
+  },
+  "quickFilter": {
+    "passed": true,
+    "clicked": "Belum",
+    "rowsAfterClick": 20
+  },
+  "accordion": {
+    "passed": true,
+    "buttonTextAfter": "Tutup Detail ▴"
+  },
+  "tvPagination": {
+    "passed": true,
+    "pageCount": 2
+  },
+  "statusPills": {
+    "passed": true,
+    "samplePillText": ""
+  },
+  "logPauseToggle": {
+    "passed": true
+  }
+}

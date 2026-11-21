@@ -1,0 +1,1826 @@
+<!DOCTYPE html><html lang="id"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Qurban Command Center | Ahsantv</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link class="" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><link class="" href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+/* ── Reset & Variables based on Midnight Emerald Reference ── */
+:root {
+  --font-sans: 'Raleway', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Surfaces & Foundation from Reference */
+  --bg-global: #000000;
+  --bg-card: #1C1C1E;
+  --bg-raised: #2C2C2E;
+  --bg-control-off: #3A3A3C;
+  --text-primary: #F5F5F7;
+  --text-secondary: #A1A1A6;
+
+  /* Accents */
+  --emerald-gradient: linear-gradient(90deg, #0F5C45 0%, #34D399 100%);
+  --champagne-gradient: linear-gradient(90deg, #F5E3B3 0%, #C9A24D 100%);
+  --champagne-accent: #C9A24D;
+  --emerald-primary: #34D399;
+  --emerald-glow: rgba(52, 211, 153, 0.25);
+
+  /* Status Badges & Pills ("Lighter color goes on surface, not text") */
+  --badge-belum-bg: #FFA49B;
+  --badge-belum-text: #3D100C;
+  --badge-proses-bg: #FEE085;
+  --badge-proses-text: #412A00;
+  --badge-selesai-bg: #80E5BE;
+  --badge-selesai-text: #053B2A;
+  --badge-diterima-bg: #6BE59E;
+  --badge-diterima-text: #023617;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none !important;
+  outline: none !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-global) !important;
+  color: var(--text-primary) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100% !important;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-global) !important;
+  color: var(--text-primary) !important;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: visible;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top Navigation Bar ── */
+.topbar {
+  background: linear-gradient(rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.94)), url("https://qbjpzbcnxmintosbvaal.supabase.co/storage/v1/object/sign/assets/mecca.webp?token=eyJraWQiOiI5MGMyNmVkOC0xM2U0LTQyZTItODI2Yy05ZTlkZjU3NjU0Y2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvbWVjY2Eud2VicCIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3OTE5NjM1NTIsImV4cCI6MjQyMjY4MzU1Mn0.nvl_p54w4mjYoTI9h3ot5wHaQmCFoMOHLhjmtmXuoJ8") center center / cover no-repeat;
+  color: var(--text-primary);
+  height: 64px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  z-index: 30;
+  position: relative;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+}
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.brand-badge-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--emerald-primary);
+  font-size: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.brand-info h1 {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-info p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.system-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: var(--bg-raised);
+  border-radius: 10px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Dark Graphite Project Progress Widget Deck ── */
+.phase-strip {
+  background: transparent;
+  padding: 16px 32px 10px 32px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) 330px;
+  gap: 14px;
+  flex-shrink: 0;
+  align-items: start;
+}
+
+.dark-progress-card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 18px 20px 16px 20px;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.25s ease, background 0.25s ease;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.dark-progress-card:hover {
+  transform: translateY(-2px);
+  background: #222225;
+}
+
+.card-top-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-phase-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.card-phase-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-pct-row {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.card-big-pct {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.card-pct-symbol {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Capsule Progress Bar - Control Off track, Emerald Accent fill */
+.dark-track-capsule {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  background-color: var(--bg-control-off);
+  border-radius: 9999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dark-track-fill {
+  height: 100%;
+  background: var(--emerald-gradient);
+  border-radius: 9999px;
+  box-shadow: 0 0 16px var(--emerald-glow);
+  position: relative;
+  z-index: 1;
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark-track-target-label {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+  z-index: 2;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Master Progress Hero Card (5th column) - The One Gold Moment */
+.master-dark-card {
+  background: var(--bg-card);
+}
+.master-dark-card .card-big-pct {
+  color: #F5E3B3;
+}
+.master-dark-card .dark-track-fill {
+  background: var(--champagne-gradient);
+  box-shadow: 0 0 16px rgba(201, 162, 77, 0.35);
+}
+
+.card-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-phase-meta-pill {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.card-btn-selengkapnya {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: var(--bg-raised);
+  color: var(--text-primary);
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.card-btn-selengkapnya:hover {
+  background-color: var(--bg-control-off);
+  color: #ffffff;
+}
+
+/* Accordion Breakdown Panel */
+.phase-accordion-panel {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.25s ease;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phase-accordion-panel.is-open {
+  max-height: 140px;
+  opacity: 1;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.accordion-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  background: var(--bg-raised);
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.acc-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.acc-stat-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.acc-stat-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+.acc-num-belum { color: #FFA49B; }
+.acc-num-proses { color: #FEE085; }
+.acc-num-selesai { color: #80E5BE; }
+
+.acc-ratio-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+.acc-ratio-badge {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--emerald-primary);
+  background: var(--bg-raised);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.widget-avatar-stack {
+  display: flex;
+  align-items: center;
+}
+.widget-avatar-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  margin-left: -7px;
+}
+.widget-avatar-circle:first-child {
+  margin-left: 0;
+  background: linear-gradient(135deg, #10B981 0%, #047857 100%);
+}
+.widget-avatar-circle:nth-child(2) {
+  background: linear-gradient(135deg, #F59E0B 0%, #B45309 100%);
+}
+.widget-avatar-circle:nth-child(3) {
+  background: linear-gradient(135deg, #6366F1 0%, #4338CA 100%);
+}
+
+/* ── Filter & Search Toolbar ── */
+.toolbar {
+  background: var(--bg-card);
+  margin: 0 32px 14px 32px;
+  border-radius: 16px;
+  padding: 10px 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.search-box {
+  position: relative;
+  width: 320px;
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 13px;
+  pointer-events: none;
+}
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  background: var(--bg-raised);
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+}
+.search-input:focus {
+  background: #343438;
+}
+.search-input::placeholder { color: var(--text-secondary); }
+
+.filter-segments {
+  display: flex;
+  align-items: center;
+  background: var(--bg-raised);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.segment-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.segment-btn:hover {
+  color: var(--text-primary);
+}
+.segment-btn.active {
+  background: var(--emerald-primary);
+  color: #053B2A;
+  font-weight: 700;
+}
+
+.animal-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 6px;
+}
+.animal-tag-btn {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+.animal-tag-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: #343438;
+}
+.animal-tag-btn.active {
+  background: var(--emerald-primary);
+  color: #053B2A;
+  font-weight: 700;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tv-carousel-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-raised);
+  border-radius: 10px;
+  padding: 4px 10px;
+}
+.tv-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tv-pages-btns {
+  display: flex;
+  gap: 3px;
+}
+.tv-page-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--bg-control-off);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.tv-page-btn:hover {
+  color: var(--text-primary);
+}
+.tv-page-btn.active {
+  background: var(--emerald-primary);
+  color: #053B2A;
+  font-weight: 700;
+}
+.auto-timer-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+.auto-timer-bar {
+  width: 32px;
+  height: 4px;
+  background: var(--bg-control-off);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.auto-timer-fill {
+  height: 100%;
+  background: var(--emerald-primary);
+  width: 0%;
+  transition: width 1s linear;
+}
+
+/* Reference Buttons:
+   Export XLSX: Active Emerald Accent (#34D399) with dark green text
+   Master Run: Champagne Gold Accent (#F5E3B3 -> #C9A24D)
+   Reset Filter: Raised tone (#2C2C2E) with #F5F5F7 text
+*/
+.btn-secondary {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  background: var(--bg-control-off);
+  color: #ffffff;
+}
+
+.btn-export-accent {
+  padding: 7px 15px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #053B2A;
+  background: var(--emerald-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--emerald-glow);
+  transition: all 0.15s;
+}
+.btn-export-accent:hover {
+  background: #50e3ac;
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  padding: 7px 15px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #053B2A;
+  background: var(--emerald-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--emerald-glow);
+  transition: all 0.15s;
+}
+.btn-primary:hover {
+  background: #50e3ac;
+  transform: translateY(-1px);
+}
+
+/* ── Main Operations Workspace ── */
+.workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 440px;
+  padding: 0 32px 14px 32px;
+  gap: 18px;
+  background: transparent;
+  min-height: 480px;
+}
+
+/* Table Area */
+.table-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  background: var(--bg-card);
+}
+.table-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.table-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.data-badge-count {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.quick-instruction {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.table-scroll::-webkit-scrollbar-track { background: var(--bg-card); }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--bg-control-off); border-radius: 3px; }
+.table-scroll::-webkit-scrollbar-thumb:hover { background: #4e4e52; }
+
+.ops-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 860px;
+}
+.ops-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 10;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ops-table th.text-center { text-align: center; }
+
+.ops-table td {
+  padding: 12px 16px;
+  font-size: 13px;
+  vertical-align: middle;
+  transition: background 0.15s ease;
+  color: var(--text-primary);
+}
+.ops-table tr:hover td {
+  background-color: var(--bg-raised);
+}
+
+/* Cell Elements */
+.cell-index {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.group-id-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-id-badge {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 12px;
+  background: var(--bg-raised);
+  color: var(--emerald-primary);
+  padding: 3px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+}
+.btn-toggle-eye {
+  width: 22px;
+  height: 22px;
+  background: var(--bg-raised);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-toggle-eye:hover {
+  background: var(--bg-control-off);
+  color: var(--text-primary);
+}
+.btn-toggle-eye.is-hidden {
+  background: var(--badge-belum-bg);
+  color: var(--badge-belum-text);
+}
+
+.sohibul-list-tag {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sohibul-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+.sohibul-bullet {
+  color: var(--emerald-primary);
+  font-size: 8px;
+}
+
+.animal-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.animal-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--emerald-primary);
+}
+.animal-text-name {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.animal-tag-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.tag-timer-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--badge-proses-bg);
+  color: var(--badge-proses-text);
+  padding: 1px 7px;
+  border-radius: 99px;
+  margin-top: 3px;
+}
+
+/* Status Interactive Switchers - Control off background container */
+.segmented-status-control {
+  display: inline-flex;
+  background: var(--bg-raised);
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+.status-pill-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.status-pill-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.06);
+}
+
+/* STRICT RULE 3: "Lighter color goes on the surface, not the text" */
+.status-pill-btn.active.status-belum,
+.segmented-status-control button.status-pill-btn.active.status-belum {
+  background: var(--badge-belum-bg) !important;
+  color: var(--badge-belum-text) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(255, 164, 155, 0.3) !important;
+}
+
+.status-pill-btn.active.status-proses,
+.segmented-status-control button.status-pill-btn.active.status-proses {
+  background: var(--badge-proses-bg) !important;
+  color: var(--badge-proses-text) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(254, 224, 133, 0.3) !important;
+}
+
+.status-pill-btn.active.status-selesai,
+.segmented-status-control button.status-pill-btn.active.status-selesai {
+  background: var(--badge-selesai-bg) !important;
+  color: var(--badge-selesai-text) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(128, 229, 190, 0.3) !important;
+}
+
+.status-pill-btn.active.status-diterima,
+.segmented-status-control button.status-pill-btn.active.status-diterima {
+  background: var(--badge-diterima-bg) !important;
+  color: var(--badge-diterima-text) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(107, 229, 158, 0.3) !important;
+}
+
+/* Progress & Meta Cell */
+.meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 140px;
+}
+.score-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.score-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.score-bar-track {
+  width: 60px;
+  height: 6px;
+  background: var(--bg-control-off);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%;
+  background: var(--emerald-gradient);
+  border-radius: 99px;
+}
+.sub-meta {
+  font-size: 10px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Activity Audit Log Sidebar ── */
+.audit-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  height: 100%;
+}
+.audit-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+}
+.audit-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.audit-header-title h2 {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.audit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.audit-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-raised);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+.audit-btn:hover {
+  background: var(--bg-control-off);
+  color: var(--text-primary);
+}
+.audit-btn.active {
+  background: var(--emerald-primary);
+  color: #053B2A;
+}
+.audit-btn.btn-danger {
+  color: #FFA49B;
+}
+.audit-btn.btn-danger:hover {
+  background: rgba(255, 164, 155, 0.15);
+}
+
+.audit-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.audit-body::-webkit-scrollbar { width: 5px; }
+.audit-body::-webkit-scrollbar-thumb { background: var(--bg-control-off); border-radius: 3px; }
+
+.log-entry {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-global) !important;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.log-entry:hover {
+  background: #080808 !important;
+}
+
+.audit-footer {
+  padding: 8px 14px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ── Bottom Operational Status Bar ── */
+.bottom-bar {
+  height: 38px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+.bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.bottom-brand {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.btn-reset-hidden {
+  background: var(--bg-raised);
+  color: var(--emerald-primary);
+  border-radius: 9999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-reset-hidden:hover {
+  background: var(--bg-control-off);
+}
+
+/* Toast */
+.toast-notice {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-card);
+  color: var(--emerald-primary);
+  padding: 8px 18px;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 999;
+}
+.toast-notice.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<style id="fix-icons">
+  .material-symbols-outlined,
+  .material-symbols-rounded,
+  .material-icons,
+  [data-icon],
+  span.material-symbols-outlined,
+  i.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined' !important;
+    font-weight: normal !important;
+    font-style: normal !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    display: inline-block !important;
+    white-space: nowrap !important;
+    word-wrap: normal !important;
+    direction: ltr !important;
+    -webkit-font-feature-settings: 'liga' !important;
+    -webkit-font-smoothing: antialiased !important;
+    font-feature-settings: 'liga' 1 !important;
+    vertical-align: middle !important;
+  }
+  i[class*="fa-"], [class*="fa-"] {
+    font-family: "Font Awesome 6 Free", "FontAwesome" !important;
+    font-weight: 900 !important;
+  }
+</style>
+<style id="raleway-font-override">
+  html, body, *, input, button, select, textarea, [class*="font-"] {
+    font-family: 'Raleway', sans-serif !important;
+  }
+</style>
+</head>
+<body>
+<!-- Top Navigation Header -->
+<header class="topbar">
+<div class="brand-group" style="position: relative; z-index: 2;">
+<div class="brand-badge-icon">
+<i class="fas fa-kaaba"></i>
+</div>
+<div class="brand-info"><h1 style="color: #F5F5F7;" class="">Sistem Manajemen Qurban Terpadu AhsanTV</h1><p style="color: #A1A1A6;" class="">Pemrosesan Hewan Qurban &amp; Manajemen Audit secara Real-Time</p></div>
+</div>
+<div class="topbar-right" style="position: relative; z-index: 2;">
+<span class="system-tag"><i class="fas fa-shield-halved" style="color: #34D399;"></i> 1446H Operational</span>
+</div>
+</header>
+<!-- Dark Phase Progress Deck (Project Progress Widget Style) -->
+<section class="phase-strip" id="phaseCardsDeck"><div class="dark-progress-card" data-phase-card="phase1"><div class="card-top-header"><div class="card-phase-icon"><i class="fas fa-truck-ramp-box"></i></div><h3 class="card-phase-title">1. Kedatangan</h3></div><div class="card-pct-row"><span class="card-big-pct">83</span><span class="card-pct-symbol">%</span></div><div class="dark-track-capsule" role="progressbar" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100"><div class="dark-track-fill" style="width: 83%;"></div><span class="dark-track-target-label">Hari Ini</span></div><div class="card-bottom-row"><span class="card-phase-meta-pill">Fase Operasi</span><button class="card-btn-selengkapnya" data-toggle-acc="phase1">Selengkapnya ▾</button></div><div class="phase-accordion-panel "><div class="accordion-stats-grid"><div class="acc-stat-box"><span class="acc-stat-lbl">Belum</span><span class="acc-stat-num acc-num-belum">4</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">-</span><span class="acc-stat-num" style="color:#A1A1A6;">-</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Selesai</span><span class="acc-stat-num acc-num-selesai">19</span></div></div><div class="acc-ratio-row"><span class="">Realisasi Grup Hewan:</span><span class="acc-ratio-badge">19 / 23 grup</span></div></div></div><div class="dark-progress-card" data-phase-card="phase2"><div class="card-top-header"><div class="card-phase-icon"><i class="fas fa-scissors"></i></div><h3 class="card-phase-title">2. Sembelihan</h3></div><div class="card-pct-row"><span class="card-big-pct">70</span><span class="card-pct-symbol">%</span></div><div class="dark-track-capsule" role="progressbar" aria-valuenow="70" aria-valuemin="0" aria-valuemax="100"><div class="dark-track-fill" style="width: 70%;"></div><span class="dark-track-target-label">Target 100%</span></div><div class="card-bottom-row"><span class="card-phase-meta-pill">Fase Operasi</span><button class="card-btn-selengkapnya" data-toggle-acc="phase2">Selengkapnya ▾</button></div><div class="phase-accordion-panel "><div class="accordion-stats-grid"><div class="acc-stat-box"><span class="acc-stat-lbl">Belum</span><span class="acc-stat-num acc-num-belum">7</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">-</span><span class="acc-stat-num" style="color:#A1A1A6;">-</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Selesai</span><span class="acc-stat-num acc-num-selesai">16</span></div></div><div class="acc-ratio-row"><span class="">Realisasi Grup Hewan:</span><span class="acc-ratio-badge">16 / 23 grup</span></div></div></div><div class="dark-progress-card" data-phase-card="phase3"><div class="card-top-header"><div class="card-phase-icon"><i class="fas fa-box"></i></div><h3 class="card-phase-title">3. Pengulitan</h3></div><div class="card-pct-row"><span class="card-big-pct">43</span><span class="card-pct-symbol">%</span></div><div class="dark-track-capsule" role="progressbar" aria-valuenow="43" aria-valuemin="0" aria-valuemax="100"><div class="dark-track-fill" style="width: 43%;"></div><span class="dark-track-target-label">Target 100%</span></div><div class="card-bottom-row"><span class="card-phase-meta-pill">Fase Operasi</span><button class="card-btn-selengkapnya" data-toggle-acc="phase3">Selengkapnya ▾</button></div><div class="phase-accordion-panel "><div class="accordion-stats-grid"><div class="acc-stat-box"><span class="acc-stat-lbl">Belum</span><span class="acc-stat-num acc-num-belum">10</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Proses</span><span class="acc-stat-num acc-num-proses">3</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Selesai</span><span class="acc-stat-num acc-num-selesai">10</span></div></div><div class="acc-ratio-row"><span class="">Realisasi Grup Hewan:</span><span class="acc-ratio-badge">10 / 23 grup</span></div></div></div><div class="dark-progress-card" data-phase-card="phase4"><div class="card-top-header"><div class="card-phase-icon"><i class="fas fa-box-open"></i></div><h3 class="card-phase-title">4. Distribusi</h3></div><div class="card-pct-row"><span class="card-big-pct">13</span><span class="card-pct-symbol">%</span></div><div class="dark-track-capsule" role="progressbar" aria-valuenow="13" aria-valuemin="0" aria-valuemax="100"><div class="dark-track-fill" style="width: 13%;"></div><span class="dark-track-target-label">Target 100%</span></div><div class="card-bottom-row"><span class="card-phase-meta-pill">Fase Operasi</span><button class="card-btn-selengkapnya" data-toggle-acc="phase4">Selengkapnya ▾</button></div><div class="phase-accordion-panel "><div class="accordion-stats-grid"><div class="acc-stat-box"><span class="acc-stat-lbl">Belum</span><span class="acc-stat-num acc-num-belum">17</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Proses</span><span class="acc-stat-num acc-num-proses">3</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Selesai</span><span class="acc-stat-num acc-num-selesai">3</span></div></div><div class="acc-ratio-row"><span class="">Realisasi Grup Hewan:</span><span class="acc-ratio-badge">3 / 23 grup</span></div></div></div><div class="dark-progress-card master-dark-card" data-phase-card="master"><div class="card-top-header"><div class="card-phase-icon" style="color:#C9A24D;"><i class="fas fa-chart-pie"></i></div><h3 class="card-phase-title" style="color:#F5F5F7;">Master Execution</h3></div><div class="card-pct-row"><span class="card-big-pct" style="color:#F5E3B3;">54</span><span class="card-pct-symbol" style="color:#C9A24D;">%</span></div><div class="dark-track-capsule" role="progressbar" aria-valuenow="54" aria-valuemin="0" aria-valuemax="100"><div class="dark-track-fill" style="width: 54%;"></div><span class="dark-track-target-label" style="color:#A1A1A6;">Target 100%</span></div><div class="card-bottom-row"><div class="widget-avatar-stack" title="3 Tim Terlibat"><div class="widget-avatar-circle" title="Petugas PWA" style="background: rgb(28, 28, 30) !important;"></div><div class="widget-avatar-circle" title="Tim Jagal" style="background: rgb(28, 28, 30) !important;"></div><div class="widget-avatar-circle" title="Tim Distribusi" style="background: rgb(28, 28, 30) !important;"></div></div><button class="card-btn-selengkapnya" data-toggle-acc="master">Selengkapnya ▾</button></div><div class="phase-accordion-panel "><div class="accordion-stats-grid"><div class="acc-stat-box"><span class="acc-stat-lbl">Skor Poin</span><span class="acc-stat-num" style="color:#C9A24D;">150</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Target Max</span><span class="acc-stat-num" style="color:#A1A1A6;">276</span></div><div class="acc-stat-box"><span class="acc-stat-lbl">Kelompok</span><span class="acc-stat-num" style="color:#38bdf8;">23</span></div></div><div class="acc-ratio-row"><span class="">Kapasitas Keseluruhan:</span><span class="acc-ratio-badge" style="color:#C9A24D;">54% Selesai</span></div></div></div></section>
+<!-- Control & Filter Toolbar -->
+<div class="toolbar">
+<div class="toolbar-left">
+<div class="search-box">
+<i class="fas fa-magnifying-glass search-icon"></i>
+<input class="search-input" id="searchInput" placeholder="Search ID Grup, Sohibul, or Label..." type="text">
+</div>
+<div class="filter-segments" id="quickFilterSegments">
+<button class="segment-btn active" data-filter="all">Semua</button>
+<button class="segment-btn" data-filter="belum">Belum</button>
+<button class="segment-btn" data-filter="proses">Dalam Proses</button>
+<button class="segment-btn" data-filter="selesai">Selesai</button>
+</div>
+<div class="animal-filter-group" id="animalFilters">
+<button class="animal-tag-btn" data-animal="Sapi"><i class="fas fa-cow"></i> Sapi</button>
+<button class="animal-tag-btn" data-animal="Kambing"><i class="fas fa-horse-head"></i> Kambing</button>
+<button class="animal-tag-btn" data-animal="Domba"><i class="fas fa-paw"></i> Domba</button>
+</div>
+</div>
+<div class="toolbar-right">
+<div class="tv-carousel-control">
+<span class="tv-label"><i class="fas fa-display"></i> TV Hal</span>
+<div class="tv-pages-btns" id="tvPageButtons"><button class="tv-page-btn" data-page="1">1</button><button class="tv-page-btn" data-page="2">2</button><button class="tv-page-btn active" data-page="3">3</button></div>
+<div class="auto-timer-pill" title="Interval rotasi layar TV otomatis">
+<span id="tvTimerSec" class="">4s</span>
+<div class="auto-timer-bar"><div class="auto-timer-fill" id="tvTimerFill" style="width: 33%;"></div></div>
+</div>
+</div>
+<button class="btn-export-accent" id="btnExport"><i class="fas fa-file-arrow-down"></i> Export XLSX</button>
+<button class="btn-secondary" id="btnResetFilter"><i class="fas fa-arrow-rotate-left"></i> Reset</button>
+<button class="btn-primary" id="btnRefreshMonitor"><i class="fas fa-satellite-dish"></i> Sync Monitor</button>
+</div>
+</div>
+<!-- Workspace Grid -->
+<main class="workspace">
+<!-- Main Table Area -->
+<div class="table-container">
+<div class="table-meta-bar">
+<div class="table-meta-left" style="color: #A1A1A6; font-size: 13px; font-weight: 500;">
+<span class="">Menampilkan <span class="data-badge-count" id="tableFilteredCount" style="color: #F5F5F7; font-weight: 800; font-family: var(--font-mono);">23</span> dari <span id="tableTotalCount" style="color: #F5F5F7; font-weight: 800; font-family: var(--font-mono);" class="">23</span> kelompok qurban</span>
+<span class="quick-instruction">• Klik status pill untuk langsung mengubah status alur</span>
+</div>
+<div id="hiddenNotice" style="display: none; color: #FFA49B; font-weight: 600;" class=""><i class="fas fa-eye-slash"></i> <span id="hiddenCount" class="">0</span> disembunyikan dari TV</div>
+</div>
+<div class="table-scroll">
+<table class="ops-table">
+<thead>
+<tr>
+<th class="text-center" style="width: 44px;">No</th>
+<th style="width: 190px;" class="">ID &amp; Sohibul</th>
+<th style="width: 180px;" class="">Detail Hewan</th>
+<th class="text-center" style="width: 140px;">1. Kedatangan</th>
+<th class="text-center" style="width: 140px;">2. Sembelihan</th>
+<th class="text-center" style="width: 175px;">3. Pengulitan</th>
+<th class="text-center" style="width: 175px;">4. Distribusi</th>
+<th style="width: 140px;" class="">Progress</th>
+</tr>
+</thead>
+<tbody id="tableBody"><tr data-group-id="SPI-01"><td class="cell-index">1</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-01</span><button class="btn-toggle-eye " data-toggle-hide="SPI-01" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> H. Ahmad Fauzi</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Dr. Siti Aminah</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #1</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-01" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-01" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-01" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-01" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-01" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">9/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:75%"></div></div></div><div class="sub-meta" title="Gerbang Pintu 1"><i class="fas fa-user-check"></i> Gerbang Pintu 1</div></div></td></tr><tr data-group-id="SPI-02"><td class="cell-index">2</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-02</span><button class="btn-toggle-eye " data-toggle-hide="SPI-02" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Fatimah Zahra</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Abdul Rahman</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #2</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-02" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-02" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-02" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-02" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-02" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">0/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:0%"></div></div></div><div class="sub-meta" title="System Auto"><i class="fas fa-user-check"></i> System Auto</div></div></td></tr><tr data-group-id="SPI-03"><td class="cell-index">3</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-03</span><button class="btn-toggle-eye " data-toggle-hide="SPI-03" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Ibrahim Malik</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Zainab Nuraini</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #3</div><div class="animal-tag-label">Sapi (7 Porsi)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-03" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-03" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="SPI-03" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-03" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-03" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">7/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:58%"></div></div></div><div class="sub-meta" title="Tim Jagal B"><i class="fas fa-user-check"></i> Tim Jagal B</div></div></td></tr><tr data-group-id="SPI-04"><td class="cell-index">4</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-04</span><button class="btn-toggle-eye " data-toggle-hide="SPI-04" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Halimah</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Bilal Ramadhan</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #4</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-04" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-04" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-04" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-04" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-04" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">12/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:100%"></div></div></div><div class="sub-meta" title="Distribusi PWA"><i class="fas fa-user-check"></i> Distribusi PWA</div></div></td></tr><tr data-group-id="SPI-05"><td class="cell-index">5</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-05</span><button class="btn-toggle-eye " data-toggle-hide="SPI-05" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Dewi Lestari, M.Pd</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Muhammad Rizki</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #5</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-05" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-05" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-05" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-05" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-05" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">6/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%"></div></div></div><div class="sub-meta" title="Auto-Timer"><i class="fas fa-user-check"></i> Auto-Timer</div></div></td></tr><tr data-group-id="SPI-06"><td class="cell-index">6</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-06</span><button class="btn-toggle-eye " data-toggle-hide="SPI-06" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Umar Hakim</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Khadijah Salsabila</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #6</div><div class="animal-tag-label">Sapi (7 Porsi)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-06" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-06" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-06" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="SPI-06" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-06" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">10/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div></div><div class="sub-meta" title="Admin Command"><i class="fas fa-user-check"></i> Admin Command</div></div></td></tr><tr data-group-id="SPI-07"><td class="cell-index">7</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-07</span><button class="btn-toggle-eye " data-toggle-hide="SPI-07" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Rahmawati</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Hamzah Pratama</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #7</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-07" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-07" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-07" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-07" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-07" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">3/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:25%"></div></div></div><div class="sub-meta" title="Gerbang Pintu 1"><i class="fas fa-user-check"></i> Gerbang Pintu 1</div></div></td></tr><tr data-group-id="SPI-08"><td class="cell-index">8</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-08</span><button class="btn-toggle-eye " data-toggle-hide="SPI-08" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Taufik Hidayat</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> H. Ahmad Fauzi</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #8</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="SPI-08" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-08" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="SPI-08" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-08" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-08" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">9/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:75%"></div></div></div><div class="sub-meta" title="Tim Jagal A"><i class="fas fa-user-check"></i> Tim Jagal A</div></div></td></tr><tr data-group-id="SPI-09"><td class="cell-index">9</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">SPI-09</span><button class="btn-toggle-eye " data-toggle-hide="SPI-09" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Hasan Basri</span><span class="sohibul-item"><span class="sohibul-bullet">●</span> Fatimah Zahra</span><span class="sohibul-item" style="color:var(--text-secondary)">+ 5 lainnya</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-cow"></i></div><div><div class="animal-text-name">Sapi Patungan #9</div><div class="animal-tag-label">Sapi (7 Porsi)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-09" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-09" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-09" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="SPI-09" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="SPI-09" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">0/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:0%"></div></div></div><div class="sub-meta" title="System Auto"><i class="fas fa-user-check"></i> System Auto</div></div></td></tr><tr data-group-id="KMB-01"><td class="cell-index">10</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-01</span><button class="btn-toggle-eye " data-toggle-hide="KMB-01" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Maryam Azzahra</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #1</div><div class="animal-tag-label">Kambing (Mandiri)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-01" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-01" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="KMB-01" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-01" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-01" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">7/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:58%"></div></div></div><div class="sub-meta" title="Distribusi PWA"><i class="fas fa-user-check"></i> Distribusi PWA</div></div></td></tr><tr data-group-id="KMB-02"><td class="cell-index">11</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-02</span><button class="btn-toggle-eye " data-toggle-hide="KMB-02" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Ibrahim Malik</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #2</div><div class="animal-tag-label">Kambing (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-02" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-02" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-02" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-02" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-02" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">12/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:100%"></div></div></div><div class="sub-meta" title="Auto-Timer"><i class="fas fa-user-check"></i> Auto-Timer</div></div></td></tr><tr data-group-id="KMB-03"><td class="cell-index">12</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-03</span><button class="btn-toggle-eye " data-toggle-hide="KMB-03" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Zainab Nuraini</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #3</div><div class="animal-tag-label">Kambing (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-03" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-03" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-03" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-03" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-03" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">6/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%"></div></div></div><div class="sub-meta" title="Admin Command"><i class="fas fa-user-check"></i> Admin Command</div></div></td></tr><tr data-group-id="KMB-04"><td class="cell-index">13</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-04</span><button class="btn-toggle-eye " data-toggle-hide="KMB-04" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Ali Akbar</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #4</div><div class="animal-tag-label">Kambing (Mandiri)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-04" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-04" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-04" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="KMB-04" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-04" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">10/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div></div><div class="sub-meta" title="Gerbang Pintu 1"><i class="fas fa-user-check"></i> Gerbang Pintu 1</div></div></td></tr><tr data-group-id="KMB-05"><td class="cell-index">14</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-05</span><button class="btn-toggle-eye " data-toggle-hide="KMB-05" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Rahmawati</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #5</div><div class="animal-tag-label">Kambing (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-05" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-05" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-05" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-05" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-05" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">3/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:25%"></div></div></div><div class="sub-meta" title="Tim Jagal A"><i class="fas fa-user-check"></i> Tim Jagal A</div></div></td></tr><tr data-group-id="KMB-06"><td class="cell-index">15</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-06</span><button class="btn-toggle-eye " data-toggle-hide="KMB-06" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Hamzah Pratama</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #6</div><div class="animal-tag-label">Kambing (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-06" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-06" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-06" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-06" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-06" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">9/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:75%"></div></div></div><div class="sub-meta" title="Tim Jagal B"><i class="fas fa-user-check"></i> Tim Jagal B</div></div></td></tr><tr data-group-id="KMB-07"><td class="cell-index">16</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-07</span><button class="btn-toggle-eye " data-toggle-hide="KMB-07" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Salma Nabila</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #7</div><div class="animal-tag-label">Kambing (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-07" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-07" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-07" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-07" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-07" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">0/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:0%"></div></div></div><div class="sub-meta" title="System Auto"><i class="fas fa-user-check"></i> System Auto</div></div></td></tr><tr data-group-id="KMB-08"><td class="cell-index">17</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">KMB-08</span><button class="btn-toggle-eye " data-toggle-hide="KMB-08" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Idris Wahyudi</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-horse-head"></i></div><div><div class="animal-text-name">Kambing Mandiri #8</div><div class="animal-tag-label">Kambing (Mandiri)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="KMB-08" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="KMB-08" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="KMB-08" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="KMB-08" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="KMB-08" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">7/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:58%"></div></div></div><div class="sub-meta" title="Auto-Timer"><i class="fas fa-user-check"></i> Auto-Timer</div></div></td></tr><tr data-group-id="DMB-01"><td class="cell-index">18</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-01</span><button class="btn-toggle-eye " data-toggle-hide="DMB-01" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Halimah</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #1</div><div class="animal-tag-label">Domba (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="DMB-01" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-01" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-01" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-01" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-01" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">12/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:100%"></div></div></div><div class="sub-meta" title="Admin Command"><i class="fas fa-user-check"></i> Admin Command</div></div></td></tr><tr data-group-id="DMB-02"><td class="cell-index">19</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-02</span><button class="btn-toggle-eye " data-toggle-hide="DMB-02" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Bilal Ramadhan</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #2</div><div class="animal-tag-label">Domba (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="DMB-02" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-02" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-02" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-02" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-02" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">6/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%"></div></div></div><div class="sub-meta" title="Gerbang Pintu 1"><i class="fas fa-user-check"></i> Gerbang Pintu 1</div></div></td></tr><tr data-group-id="DMB-03"><td class="cell-index">20</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-03</span><button class="btn-toggle-eye " data-toggle-hide="DMB-03" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Sarah Amalia</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #3</div><div class="animal-tag-label">Domba (Mandiri)</div><div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="DMB-03" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-03" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-03" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn active status-proses" data-group-id="DMB-03" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-03" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">10/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div></div><div class="sub-meta" title="Tim Jagal A"><i class="fas fa-user-check"></i> Tim Jagal A</div></div></td></tr><tr data-group-id="DMB-04"><td class="cell-index">21</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-04</span><button class="btn-toggle-eye " data-toggle-hide="DMB-04" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Taufik Hidayat</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #4</div><div class="animal-tag-label">Domba (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="DMB-04" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-04" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-04" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-04" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-04" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">3/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:25%"></div></div></div><div class="sub-meta" title="Tim Jagal B"><i class="fas fa-user-check"></i> Tim Jagal B</div></div></td></tr><tr data-group-id="DMB-05"><td class="cell-index">22</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-05</span><button class="btn-toggle-eye " data-toggle-hide="DMB-05" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> H. Ahmad Fauzi</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #5</div><div class="animal-tag-label">Domba (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn active status-diterima" data-group-id="DMB-05" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-05" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn active status-selesai" data-group-id="DMB-05" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-05" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-05" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">9/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:75%"></div></div></div><div class="sub-meta" title="Distribusi PWA"><i class="fas fa-user-check"></i> Distribusi PWA</div></div></td></tr><tr data-group-id="DMB-06"><td class="cell-index">23</td><td class=""><div class="group-id-wrapper"><span class="group-id-badge">DMB-06</span><button class="btn-toggle-eye " data-toggle-hide="DMB-06" title="Sembunyikan dari TV"><i class="fas fa-eye"></i></button></div><div class="sohibul-list-tag"><span class="sohibul-item"><span class="sohibul-bullet">●</span> Dr. Siti Aminah</span></div></td><td class=""><div class="animal-identity"><div class="animal-icon-wrap"><i class="fas fa-paw"></i></div><div><div class="animal-text-name">Domba Mandiri #6</div><div class="animal-tag-label">Domba (Mandiri)</div></div></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-06" data-field="status_kedatangan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_kedatangan" data-val="Diterima">Diterima</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-06" data-field="status_sembelihan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_sembelihan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-06" data-field="status_pengulitan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_pengulitan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_pengulitan" data-val="Selesai">Selesai</button></div></td><td style="text-align:center;" class=""><div class="segmented-status-control"><button class="status-pill-btn active status-belum" data-group-id="DMB-06" data-field="status_pengemasan" data-val="Belum">Belum</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_pengemasan" data-val="Proses">Proses</button><button class="status-pill-btn" data-group-id="DMB-06" data-field="status_pengemasan" data-val="Selesai">Selesai</button></div></td><td class=""><div class="meta-cell"><div class="score-line"><span class="score-text">0/12 pts</span><div class="score-bar-track"><div class="score-bar-fill" style="width:0%"></div></div></div><div class="sub-meta" title="System Auto"><i class="fas fa-user-check"></i> System Auto</div></div></td></tr></tbody>
+</table>
+</div>
+</div>
+<!-- Real-Time Activity Audit Log -->
+<aside class="audit-panel">
+<div class="audit-header">
+<div class="audit-header-title">
+<h2 class=""><i class="fas fa-timeline" style="color:var(--emerald-primary)"></i> Log Audit Realtime</h2>
+</div>
+<div class="audit-actions">
+<button class="audit-btn" id="btnAuditPause" title="Jeda auto-scroll"><i class="fas fa-pause"></i></button>
+<button class="audit-btn btn-danger" id="btnAuditClear" title="Bersihkan log"><i class="fas fa-trash-can"></i></button>
+</div>
+</div>
+<div class="audit-body" id="auditLogList"><div class="log-entry"><div style="background: #1447E6; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;"><div style="display: flex; align-items: center; gap: 7px;"><span class="material-symbols-outlined" style="font-size: 17px;">local_shipping</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;" class="">kedatangan</span></div><div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);" class="">10:00:15</span></div></div><div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;"><div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;"><div style="display: flex; align-items: center; gap: 6px; color: #FFA49B;"><span class="material-symbols-outlined" style="font-size: 16px;">schedule</span><span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;" class="">belum</span></div><span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span><div style="display: flex; align-items: center; gap: 6px; color: #80E5BE;"><span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase;" class="">diterima</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span><span style="font-weight: 400; color: #A1A1A6;" class="">Kode Hewan</span></div><span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;" class="">SPI-01</span></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span><span style="font-weight: 400; color: #A1A1A6;" class="">Pelaku</span></div><span style="color: #F5F5F7; font-weight: 500;" class="">Tim 1 (Ust. Ahmad)</span></div></div></div><div class="log-entry"><div style="background: #0F766E; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;"><div style="display: flex; align-items: center; gap: 7px;"><span class="material-symbols-outlined" style="font-size: 17px;">content_cut</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;" class="">sembelihan</span></div><div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);" class="">10:44:02</span></div></div><div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;"><div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;"><div style="display: flex; align-items: center; gap: 6px; color: #FFA49B;"><span class="material-symbols-outlined" style="font-size: 16px;">schedule</span><span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;" class="">belum</span></div><span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span><div style="display: flex; align-items: center; gap: 6px; color: #80E5BE;"><span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase;" class="">selesai</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span><span style="font-weight: 400; color: #A1A1A6;" class="">Kode Hewan</span></div><span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;" class="">SPI-01</span></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span><span style="font-weight: 400; color: #A1A1A6;" class="">Pelaku</span></div><span style="color: #F5F5F7; font-weight: 500;" class="">Tim Jagal A</span></div></div></div><div class="log-entry"><div style="background: #B45309; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;"><div style="display: flex; align-items: center; gap: 7px;"><span class="material-symbols-outlined" style="font-size: 17px;">inventory_2</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;" class="">pengulitan</span></div><div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);" class="">10:45:20</span></div></div><div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;"><div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;"><div style="display: flex; align-items: center; gap: 6px; color: #FFA49B;"><span class="material-symbols-outlined" style="font-size: 16px;">schedule</span><span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;" class="">belum</span></div><span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span><div style="display: flex; align-items: center; gap: 6px; color: #FEE085;"><span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase;" class="">proses</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span><span style="font-weight: 400; color: #A1A1A6;" class="">Kode Hewan</span></div><span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;" class="">SPI-01</span></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span><span style="font-weight: 400; color: #A1A1A6;" class="">Pelaku</span></div><span style="color: #F5F5F7; font-weight: 500;" class="">Auto-Timer</span></div></div></div><div class="log-entry"><div style="background: #4338CA; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;"><div style="display: flex; align-items: center; gap: 7px;"><span class="material-symbols-outlined" style="font-size: 17px;">unarchive</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;" class="">distribusi</span></div><div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);" class="">10:48:11</span></div></div><div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;"><div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;"><div style="display: flex; align-items: center; gap: 6px; color: #FEE085;"><span class="material-symbols-outlined" style="font-size: 16px;">schedule</span><span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;" class="">proses</span></div><span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span><div style="display: flex; align-items: center; gap: 6px; color: #80E5BE;"><span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase;" class="">selesai</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span><span style="font-weight: 400; color: #A1A1A6;" class="">Kode Hewan</span></div><span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;" class="">KMB-03</span></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span><span style="font-weight: 400; color: #A1A1A6;" class="">Pelaku</span></div><span style="color: #F5F5F7; font-weight: 500;" class="">Admin Command</span></div></div></div><div class="log-entry"><div style="background: #0F766E; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;"><div style="display: flex; align-items: center; gap: 7px;"><span class="material-symbols-outlined" style="font-size: 17px;">content_cut</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;" class="">sembelihan</span></div><div style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);" class="">10:50:49</span></div></div><div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;"><div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;"><div style="display: flex; align-items: center; gap: 6px; color: #FFA49B;"><span class="material-symbols-outlined" style="font-size: 16px;">schedule</span><span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;" class="">belum</span></div><span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span><div style="display: flex; align-items: center; gap: 6px; color: #80E5BE;"><span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span><span style="font-size: 12px; font-weight: 600; text-transform: lowercase;" class="">selesai</span></div></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span><span style="font-weight: 400; color: #A1A1A6;" class="">Kode Hewan</span></div><span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;" class="">DMB-01</span></div><div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;"><div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;"><span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span><span style="font-weight: 400; color: #A1A1A6;" class="">Pelaku</span></div><span style="color: #F5F5F7; font-weight: 500;" class="">Tim Jagal B</span></div></div></div></div>
+<div class="audit-footer">
+<span class="">Live stream aktivitas</span>
+<span id="logCountText" style="font-family: var(--font-mono); font-weight:700;" class="">5 entries</span>
+</div>
+</aside>
+</main>
+<!-- Bottom Global Status -->
+<footer class="bottom-bar">
+<div class="bottom-left">
+<span class="bottom-brand">AhsanTV Media • Sistem Manajemen Qurban Terpadu</span>
+<span class="">&nbsp;Idul Adha 1446 H</span>
+</div>
+<div class="bottom-right" id="bottomRightMeta">
+<span id="hiddenCounterTag"></span>
+</div>
+</footer>
+<div class="toast-notice" id="toastNotice">Menampilkan TV Layar Halaman 1</div>
+<script>
+(function() {
+  'use strict';
+
+  var AUTO_INTERVAL = 6;
+  var activePage = 1;
+  var countdown = AUTO_INTERVAL;
+  var isPausedAudit = false;
+
+  var PHASES = [
+    { key: 'phase1', field: 'status_kedatangan', label: '1. Kedatangan', icon: 'fa-truck-ramp-box', target: 'Hari Ini', options: ['Belum', 'Diterima'] },
+    { key: 'phase2', field: 'status_sembelihan', label: '2. Sembelihan', icon: 'fa-scissors', target: 'Target 100%', options: ['Belum', 'Selesai'] },
+    { key: 'phase3', field: 'status_pengulitan', label: '3. Pengulitan', icon: 'fa-box', target: 'Target 100%', options: ['Belum', 'Proses', 'Selesai'] },
+    { key: 'phase4', field: 'status_pengemasan', label: '4. Distribusi', icon: 'fa-box-open', target: 'Target 100%', options: ['Belum', 'Proses', 'Selesai'] }
+  ];
+
+  var NAMES = [
+    'H. Ahmad Fauzi', 'Dr. Siti Aminah', 'Budi Santoso, ST', 'Dewi Lestari, M.Pd', 'Muhammad Rizki',
+    'Hj. Nur Hidayah', 'Hasan Basri', 'Fatimah Zahra', 'Abdul Rahman', 'Aisyah Putri',
+    'Umar Hakim', 'Khadijah Salsabila', 'Yusuf Maulana', 'Maryam Azzahra', 'Ibrahim Malik',
+    'Zainab Nuraini', 'Ali Akbar', 'Rahmawati', 'Hamzah Pratama', 'Salma Nabila',
+    'Idris Wahyudi', 'Halimah', 'Bilal Ramadhan', 'Sarah Amalia', 'Taufik Hidayat'
+  ];
+
+  var ACTORS = ['Admin Command', 'Gerbang Pintu 1', 'Tim Jagal A', 'Tim Jagal B', 'Distribusi PWA', 'Auto-Timer'];
+
+  var groupsData = [];
+  var hiddenGroupIds = [];
+  var auditLogs = [];
+  var selectedAnimalFilter = null;
+  var selectedStatusFilter = 'all';
+  var searchQuery = '';
+
+  var expandedAccordionKeys = {};
+
+  function initData() {
+    var plan = [
+      { jenis: 'Sapi', code: 'SPI', count: 9, capacity: 7 },
+      { jenis: 'Kambing', code: 'KMB', count: 8, capacity: 1 },
+      { jenis: 'Domba', code: 'DMB', count: 6, capacity: 1 }
+    ];
+
+    var nameIdx = 0;
+    var list = [];
+    var seq = 1;
+
+    plan.forEach(function(p) {
+      for (var i = 1; i <= p.count; i++) {
+        var id = p.code + '-' + String(i).padStart(2, '0');
+        var stage = (seq * 3 + 1) % 7; 
+        var sohibul = [];
+        for (var k = 0; k < p.capacity; k++) {
+          sohibul.push(NAMES[(nameIdx++) % NAMES.length]);
+        }
+
+        list.push({
+          id_grup: id,
+          jenis_hewan: p.jenis,
+          label_tampilan: p.jenis + ' ' + (p.capacity > 1 ? 'Patungan' : 'Mandiri') + ' #' + i,
+          status_kedatangan: stage >= 1 ? 'Diterima' : 'Belum',
+          status_sembelihan: stage >= 2 ? 'Selesai' : 'Belum',
+          status_pengulitan: stage >= 4 ? 'Selesai' : (stage === 3 ? 'Proses' : 'Belum'),
+          status_pengemasan: stage >= 6 ? 'Selesai' : (stage === 5 ? 'Proses' : 'Belum'),
+          is_timer_active: stage === 3 || stage === 5,
+          updated_by: stage > 0 ? ACTORS[seq % ACTORS.length] : 'System Auto',
+          sohibul: sohibul
+        });
+        seq++;
+      }
+    });
+
+    groupsData = list;
+
+    var initialLogs = [
+      { id: '1', time: '10:00:15', actor: 'Tim 1 (Ust. Ahmad)', id_grup: 'SPI-01', phase: 'kedatangan', from: 'belum', to: 'diterima', source: 'qr', icon: 'local_shipping', bannerColor: '#1447E6' },
+      { id: '2', time: '10:44:02', actor: 'Tim Jagal A', id_grup: 'SPI-01', phase: 'sembelihan', from: 'belum', to: 'selesai', source: 'qr', icon: 'content_cut', bannerColor: '#0F766E' },
+      { id: '3', time: '10:45:20', actor: 'Auto-Timer', id_grup: 'SPI-01', phase: 'pengulitan', from: 'belum', to: 'proses', source: 'auto', icon: 'inventory_2', bannerColor: '#B45309' },
+      { id: '4', time: '10:48:11', actor: 'Admin Command', id_grup: 'KMB-03', phase: 'distribusi', from: 'proses', to: 'selesai', source: 'manual', icon: 'unarchive', bannerColor: '#4338CA' },
+      { id: '5', time: '10:50:49', actor: 'Tim Jagal B', id_grup: 'DMB-01', phase: 'sembelihan', from: 'belum', to: 'selesai', source: 'qr', icon: 'content_cut', bannerColor: '#0F766E' }
+    ];
+    auditLogs = initialLogs;
+  }
+
+  function getFilteredRows() {
+    var q = searchQuery.toLowerCase().trim();
+    return groupsData.filter(function(item) {
+      if (selectedAnimalFilter && item.jenis_hewan !== selectedAnimalFilter) return false;
+      if (q) {
+        var matchId = item.id_grup.toLowerCase().indexOf(q) !== -1;
+        var matchLabel = item.label_tampilan.toLowerCase().indexOf(q) !== -1;
+        var matchSohibul = item.sohibul.some(function(n) { return n.toLowerCase().indexOf(q) !== -1; });
+        if (!matchId && !matchLabel && !matchSohibul) return false;
+      }
+      if (selectedStatusFilter === 'belum') {
+        var allBelum = item.status_kedatangan === 'Belum' || item.status_sembelihan === 'Belum';
+        if (!allBelum) return false;
+      } else if (selectedStatusFilter === 'proses') {
+        var isProses = item.status_pengulitan === 'Proses' || item.status_pengemasan === 'Proses';
+        if (!isProses) return false;
+      } else if (selectedStatusFilter === 'selesai') {
+        var allSelesai = item.status_pengemasan === 'Selesai';
+        if (!allSelesai) return false;
+      }
+      return true;
+    });
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toastNotice');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2400);
+  }
+
+  function getGroupScore(item) {
+    var weight = { 'Belum': 0, 'Proses': 1, 'Selesai': 3, 'Diterima': 3 };
+    var score = (weight[item.status_kedatangan] || 0) +
+                (weight[item.status_sembelihan] || 0) +
+                (weight[item.status_pengulitan] || 0) +
+                (weight[item.status_pengemasan] || 0);
+    return score;
+  }
+
+  function renderPhaseCards() {
+    var deck = document.getElementById('phaseCardsDeck');
+    var totalGroups = groupsData.length || 1;
+    var totalScore = 0;
+    var maxScore = totalGroups * 12;
+
+    var html = '';
+
+    PHASES.forEach(function(ph) {
+      var belum = 0, proses = 0, selesai = 0;
+      groupsData.forEach(function(g) {
+        var val = g[ph.field];
+        if (val === 'Selesai' || val === 'Diterima') selesai++;
+        else if (val === 'Proses') proses++;
+        else belum++;
+      });
+      var pct = Math.round((selesai / totalGroups) * 100);
+      var isOpen = !!expandedAccordionKeys[ph.key];
+
+      html += '<div class="dark-progress-card" data-phase-card="' + ph.key + '">' +
+        '<div class="card-top-header">' +
+          '<div class="card-phase-icon">' +
+            '<i class="fas ' + ph.icon + '"></i>' +
+          '</div>' +
+          '<h3 class="card-phase-title">' + ph.label + '</h3>' +
+        '</div>' +
+        '<div class="card-pct-row">' +
+          '<span class="card-big-pct">' + pct + '</span>' +
+          '<span class="card-pct-symbol">%</span>' +
+        '</div>' +
+        '<div class="dark-track-capsule" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100">' +
+          '<div class="dark-track-fill" style="width: ' + pct + '%;"></div>' +
+          '<span class="dark-track-target-label">' + ph.target + '</span>' +
+        '</div>' +
+        '<div class="card-bottom-row">' +
+          '<span class="card-phase-meta-pill">Fase Operasi</span>' +
+          '<button class="card-btn-selengkapnya" data-toggle-acc="' + ph.key + '">' +
+            (isOpen ? 'Tutup Detail ▴' : 'Selengkapnya ▾') +
+          '</button>' +
+        '</div>' +
+        '<div class="phase-accordion-panel ' + (isOpen ? 'is-open' : '') + '">' +
+          '<div class="accordion-stats-grid">' +
+            '<div class="acc-stat-box">' +
+              '<span class="acc-stat-lbl">Belum</span>' +
+              '<span class="acc-stat-num acc-num-belum">' + belum + '</span>' +
+            '</div>' +
+            (ph.options.indexOf('Proses') !== -1 ?
+              '<div class="acc-stat-box">' +
+                '<span class="acc-stat-lbl">Proses</span>' +
+                '<span class="acc-stat-num acc-num-proses">' + proses + '</span>' +
+              '</div>' : 
+              '<div class="acc-stat-box">' +
+                '<span class="acc-stat-lbl">-</span>' +
+                '<span class="acc-stat-num" style="color:#A1A1A6;">-</span>' +
+              '</div>'
+            ) +
+            '<div class="acc-stat-box">' +
+              '<span class="acc-stat-lbl">Selesai</span>' +
+              '<span class="acc-stat-num acc-num-selesai">' + selesai + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="acc-ratio-row">' +
+            '<span>Realisasi Grup Hewan:</span>' +
+            '<span class="acc-ratio-badge">' + selesai + ' / ' + totalGroups + ' grup</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+
+    // 5th Column: Master Execution - The One Gold Moment
+    groupsData.forEach(function(g) { totalScore += getGroupScore(g); });
+    var overallPct = Math.round((totalScore / maxScore) * 100);
+    var isMasterOpen = !!expandedAccordionKeys['master'];
+
+    html += '<div class="dark-progress-card master-dark-card" data-phase-card="master">' +
+      '<div class="card-top-header">' +
+        '<div class="card-phase-icon" style="color:#C9A24D;">' +
+          '<i class="fas fa-chart-pie"></i>' +
+        '</div>' +
+        '<h3 class="card-phase-title" style="color:#F5F5F7;">Master Execution</h3>' +
+      '</div>' +
+      '<div class="card-pct-row">' +
+        '<span class="card-big-pct" style="color:#F5E3B3;">' + overallPct + '</span>' +
+        '<span class="card-pct-symbol" style="color:#C9A24D;">%</span>' +
+      '</div>' +
+      '<div class="dark-track-capsule" role="progressbar" aria-valuenow="' + overallPct + '" aria-valuemin="0" aria-valuemax="100">' +
+        '<div class="dark-track-fill" style="width: ' + overallPct + '%;"></div>' +
+        '<span class="dark-track-target-label" style="color:#A1A1A6;">Target 100%</span>' +
+      '</div>' +
+      '<div class="card-bottom-row">' +
+        '<div class="widget-avatar-stack" title="3 Tim Terlibat">' +
+          '<div class="widget-avatar-circle" title="Petugas PWA"></div>' +
+          '<div class="widget-avatar-circle" title="Tim Jagal"></div>' +
+          '<div class="widget-avatar-circle" title="Tim Distribusi"></div>' +
+        '</div>' +
+        '<button class="card-btn-selengkapnya" data-toggle-acc="master">' +
+          (isMasterOpen ? 'Tutup Detail ▴' : 'Selengkapnya ▾') +
+        '</button>' +
+      '</div>' +
+      '<div class="phase-accordion-panel ' + (isMasterOpen ? 'is-open' : '') + '">' +
+        '<div class="accordion-stats-grid">' +
+          '<div class="acc-stat-box">' +
+            '<span class="acc-stat-lbl">Skor Poin</span>' +
+            '<span class="acc-stat-num" style="color:#C9A24D;">' + totalScore + '</span>' +
+          '</div>' +
+          '<div class="acc-stat-box">' +
+            '<span class="acc-stat-lbl">Target Max</span>' +
+            '<span class="acc-stat-num" style="color:#A1A1A6;">' + maxScore + '</span>' +
+          '</div>' +
+          '<div class="acc-stat-box">' +
+            '<span class="acc-stat-lbl">Kelompok</span>' +
+            '<span class="acc-stat-num" style="color:#38bdf8;">' + totalGroups + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="acc-ratio-row">' +
+          '<span>Kapasitas Keseluruhan:</span>' +
+          '<span class="acc-ratio-badge" style="color:#C9A24D;">' + overallPct + '% Selesai</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    deck.innerHTML = html;
+  }
+
+  function renderTable() {
+    var filtered = getFilteredRows();
+    var tbody = document.getElementById('tableBody');
+    document.getElementById('tableFilteredCount').textContent = filtered.length;
+    document.getElementById('tableTotalCount').textContent = groupsData.length;
+
+    var hiddenCount = hiddenGroupIds.length;
+    var hiddenNotice = document.getElementById('hiddenNotice');
+    if (hiddenCount > 0) {
+      hiddenNotice.style.display = 'inline-block';
+      document.getElementById('hiddenCount').textContent = hiddenCount;
+      document.getElementById('hiddenCounterTag').innerHTML = 
+        '<button class="btn-reset-hidden" id="btnShowAllHidden"><i class="fas fa-eye"></i> Tampilkan ' + hiddenCount + ' Tersembunyi</button>';
+    } else {
+      hiddenNotice.style.display = 'none';
+      document.getElementById('hiddenCounterTag').innerHTML = '';
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 48px; color: var(--text-secondary);">' +
+        '<i class="fas fa-inbox" style="font-size:32px; margin-bottom:12px; display:block;"></i>' +
+        'Tidak ada hewan qurban yang cocok dengan filter atau pencarian saat ini.' +
+      '</td></tr>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(row, index) {
+      var isHidden = hiddenGroupIds.indexOf(row.id_grup) !== -1;
+      var score = getGroupScore(row);
+      var scoreWidth = Math.round((score / 12) * 100);
+
+      var animalIcon = 'fa-cow';
+      if (row.jenis_hewan === 'Kambing') animalIcon = 'fa-horse-head';
+      else if (row.jenis_hewan === 'Domba') animalIcon = 'fa-paw';
+
+      html += '<tr data-group-id="' + row.id_grup + '" style="' + (isHidden ? 'opacity:0.45; background:#1f1315;' : '') + '">' +
+        '<td class="cell-index">' + (index + 1) + '</td>' +
+        '<td>' +
+          '<div class="group-id-wrapper">' +
+            '<span class="group-id-badge">' + row.id_grup + '</span>' +
+            '<button class="btn-toggle-eye ' + (isHidden ? 'is-hidden' : '') + '" data-toggle-hide="' + row.id_grup + '" title="' + (isHidden ? 'Tampilkan di TV' : 'Sembunyikan dari TV') + '">' +
+              '<i class="fas ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>' +
+            '</button>' +
+          '</div>' +
+          '<div class="sohibul-list-tag">' +
+            row.sohibul.slice(0, 2).map(function(s) {
+              return '<span class="sohibul-item"><span class="sohibul-bullet">●</span> ' + s + '</span>';
+            }).join('') +
+            (row.sohibul.length > 2 ? '<span class="sohibul-item" style="color:var(--text-secondary)">+ ' + (row.sohibul.length - 2) + ' lainnya</span>' : '') +
+          '</div>' +
+        '</td>' +
+        '<td>' +
+          '<div class="animal-identity">' +
+            '<div class="animal-icon-wrap"><i class="fas ' + animalIcon + '"></i></div>' +
+            '<div>' +
+              '<div class="animal-text-name">' + row.label_tampilan + '</div>' +
+              '<div class="animal-tag-label">' + row.jenis_hewan + (row.sohibul.length > 1 ? ' (' + row.sohibul.length + ' Porsi)' : ' (Mandiri)') + '</div>' +
+              (row.is_timer_active ? '<div class="tag-timer-active"><i class="fas fa-stopwatch"></i> Timer Aktif</div>' : '') +
+            '</div>' +
+          '</div>' +
+        '</td>';
+
+      // 4 Phase Columns
+      PHASES.forEach(function(ph) {
+        var currentVal = row[ph.field];
+        html += '<td style="text-align:center;">' +
+          '<div class="segmented-status-control">';
+        ph.options.forEach(function(opt) {
+          var isActive = (currentVal === opt);
+          var cls = opt.toLowerCase();
+          html += '<button class="status-pill-btn ' + (isActive ? 'active status-' + cls : '') + '" ' +
+            'data-group-id="' + row.id_grup + '" data-field="' + ph.field + '" data-val="' + opt + '">' +
+            opt +
+          '</button>';
+        });
+        html += '</div></td>';
+      });
+
+      // Progress & Score
+      html += '<td>' +
+        '<div class="meta-cell">' +
+          '<div class="score-line">' +
+            '<span class="score-text">' + score + '/12 pts</span>' +
+            '<div class="score-bar-track"><div class="score-bar-fill" style="width:' + scoreWidth + '%"></div></div>' +
+          '</div>' +
+          '<div class="sub-meta" title="' + row.updated_by + '"><i class="fas fa-user-check"></i> ' + row.updated_by + '</div>' +
+        '</div>' +
+      '</td>' +
+      '</tr>';
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function renderAuditLog() {
+    var container = document.getElementById('auditLogList');
+    var countEl = document.getElementById('logCountText');
+    if (countEl) countEl.textContent = auditLogs.length + ' entries';
+
+    var phaseIcons = {
+      'kedatangan': 'local_shipping',
+      'sembelihan': 'content_cut',
+      'pengulitan': 'inventory_2',
+      'distribusi': 'unarchive'
+    };
+
+    var phaseBanners = {
+      'kedatangan': '#1447E6',
+      'sembelihan': '#0F766E',
+      'pengulitan': '#B45309',
+      'distribusi': '#4338CA'
+    };
+
+    var html = '';
+    auditLogs.forEach(function(item) {
+      var phKey = (item.phase || '').toLowerCase();
+      var iconName = item.icon || phaseIcons[phKey] || 'bolt';
+      var bannerColor = item.bannerColor || phaseBanners[phKey] || '#0F5C45';
+
+      var fromClass = item.from.toLowerCase();
+      var toClass = item.to.toLowerCase();
+
+      var fromColor = fromClass === 'belum' ? '#FFA49B' : (fromClass === 'proses' ? '#FEE085' : '#80E5BE');
+      var toColor = toClass === 'belum' ? '#FFA49B' : (toClass === 'proses' ? '#FEE085' : '#80E5BE');
+
+      html += '<div class="log-entry">' +
+        '<div style="background: ' + bannerColor + '; padding: 7px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; color: #ffffff;">' +
+          '<div style="display: flex; align-items: center; gap: 7px;">' +
+            '<span class="material-symbols-outlined" style="font-size: 17px;">' + iconName + '</span>' +
+            '<span style="font-size: 12px; font-weight: 600; text-transform: lowercase; letter-spacing: 0.01em;">' + item.phase + '</span>' +
+          '</div>' +
+          '<div style="display: flex; align-items: center; gap: 6px;">' +
+            '<span style="font-size: 11px; font-weight: 500; opacity: 0.9; font-family: var(--font-mono);">' + item.time + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding: 2px 6px 4px; display: flex; flex-direction: column; gap: 8px;">' +
+          '<div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px;">' +
+            '<div style="display: flex; align-items: center; gap: 6px; color: ' + fromColor + ';">' +
+              '<span class="material-symbols-outlined" style="font-size: 16px;">schedule</span>' +
+              '<span style="font-size: 12px; font-weight: 500; text-decoration: line-through; text-transform: lowercase;">' + item.from + '</span>' +
+            '</div>' +
+            '<span class="material-symbols-outlined" style="font-size: 15px; color: #A1A1A6;">arrow_forward</span>' +
+            '<div style="display: flex; align-items: center; gap: 6px; color: ' + toColor + ';">' +
+              '<span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>' +
+              '<span style="font-size: 12px; font-weight: 600; text-transform: lowercase;">' + item.to + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;">' +
+            '<div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;">' +
+              '<span class="material-symbols-outlined" style="font-size: 16px; color: #34D399;">sell</span>' +
+              '<span style="font-weight: 400; color: #A1A1A6;">Kode Hewan</span>' +
+            '</div>' +
+            '<span style="color: #F5F5F7; font-family: var(--font-mono); font-weight: 700; font-size: 11px;">' + item.id_grup + '</span>' +
+          '</div>' +
+          '<div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 0 2px;">' +
+            '<div style="display: flex; align-items: center; gap: 7px; color: #A1A1A6;">' +
+              '<span class="material-symbols-outlined" style="font-size: 16px; color: #C9A24D;">badge</span>' +
+              '<span style="font-weight: 400; color: #A1A1A6;">Pelaku</span>' +
+            '</div>' +
+            '<span style="color: #F5F5F7; font-weight: 500;">' + item.actor + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+
+    container.innerHTML = html;
+    if (!isPausedAudit) {
+      container.scrollTop = 0;
+    }
+  }
+
+  function renderTvButtons() {
+    var totalPages = 3;
+    var container = document.getElementById('tvPageButtons');
+    var html = '';
+    for (var i = 1; i <= totalPages; i++) {
+      html += '<button class="tv-page-btn ' + (i === activePage ? 'active' : '') + '" data-page="' + i + '">' + i + '</button>';
+    }
+    container.innerHTML = html;
+  }
+
+  function updateGroupStatus(groupId, field, nextVal) {
+    var target = groupsData.find(function(g) { return g.id_grup === groupId; });
+    if (!target) return;
+    var oldVal = target[field];
+    if (oldVal === nextVal) return;
+
+    target[field] = nextVal;
+    target.updated_by = 'Console User';
+
+    var phaseObj = PHASES.find(function(p) { return p.field === field; });
+    var phaseLabel = phaseObj ? phaseObj.label.replace(/^\d+\.\s*/, '') : 'Status';
+
+    var now = new Date();
+    var timeStr = String(now.getHours()).padStart(2,'0') + ':' +
+                  String(now.getMinutes()).padStart(2,'0') + ':' +
+                  String(now.getSeconds()).padStart(2,'0');
+
+    auditLogs.unshift({
+      id: Date.now().toString(),
+      time: timeStr,
+      actor: 'Command Console',
+      id_grup: groupId,
+      phase: phaseLabel.toLowerCase(),
+      from: oldVal.toLowerCase(),
+      to: nextVal.toLowerCase(),
+      source: 'manual',
+      icon: (field.indexOf('kedatangan') !== -1 ? 'local_shipping' : (field.indexOf('sembelihan') !== -1 ? 'content_cut' : (field.indexOf('pengulitan') !== -1 ? 'inventory_2' : 'unarchive'))),
+      bannerColor: '#0F5C45'
+    });
+
+    showToast('Updated ' + groupId + ' (' + phaseLabel + ') → ' + nextVal);
+    renderPhaseCards();
+    renderTable();
+    renderAuditLog();
+  }
+
+  function setupEvents() {
+    document.getElementById('phaseCardsDeck').addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-toggle-acc]');
+      if (!btn) return;
+      var key = btn.getAttribute('data-toggle-acc');
+      var targetState = !expandedAccordionKeys[key];
+      ['phase1', 'phase2', 'phase3', 'phase4', 'master'].forEach(function(k) {
+        expandedAccordionKeys[k] = targetState;
+      });
+      renderPhaseCards();
+    });
+
+    document.getElementById('tableBody').addEventListener('click', function(e) {
+      var btn = e.target.closest('.status-pill-btn');
+      if (btn) {
+        var gId = btn.getAttribute('data-group-id');
+        var fld = btn.getAttribute('data-field');
+        var val = btn.getAttribute('data-val');
+        updateGroupStatus(gId, fld, val);
+        return;
+      }
+
+      var hideBtn = e.target.closest('[data-toggle-hide]');
+      if (hideBtn) {
+        var targetId = hideBtn.getAttribute('data-toggle-hide');
+        var idx = hiddenGroupIds.indexOf(targetId);
+        if (idx !== -1) {
+          hiddenGroupIds.splice(idx, 1);
+          showToast(targetId + ' ditampilkan kembali di TV monitor.');
+        } else {
+          hiddenGroupIds.push(targetId);
+          showToast(targetId + ' disembunyikan dari TV monitor.');
+        }
+        renderTable();
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('#btnShowAllHidden')) {
+        hiddenGroupIds = [];
+        showToast('Semua kelompok qurban kembali ditampilkan.');
+        renderTable();
+      }
+    });
+
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      searchQuery = e.target.value;
+      renderTable();
+    });
+
+    document.getElementById('quickFilterSegments').addEventListener('click', function(e) {
+      var btn = e.target.closest('.segment-btn');
+      if (!btn) return;
+      document.querySelectorAll('#quickFilterSegments .segment-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      selectedStatusFilter = btn.getAttribute('data-filter');
+      renderTable();
+    });
+
+    document.getElementById('animalFilters').addEventListener('click', function(e) {
+      var btn = e.target.closest('.animal-tag-btn');
+      if (!btn) return;
+      var animal = btn.getAttribute('data-animal');
+      if (selectedAnimalFilter === animal) {
+        selectedAnimalFilter = null;
+        btn.classList.remove('active');
+      } else {
+        document.querySelectorAll('#animalFilters .animal-tag-btn').forEach(function(b) { b.classList.remove('active'); });
+        selectedAnimalFilter = animal;
+        btn.classList.add('active');
+      }
+      renderTable();
+    });
+
+    document.getElementById('btnResetFilter').addEventListener('click', function() {
+      searchQuery = '';
+      selectedAnimalFilter = null;
+      selectedStatusFilter = 'all';
+      document.getElementById('searchInput').value = '';
+      document.querySelectorAll('#quickFilterSegments .segment-btn').forEach(function(b, i) {
+        b.classList.toggle('active', i === 0);
+      });
+      document.querySelectorAll('#animalFilters .animal-tag-btn').forEach(function(b) {
+        b.classList.remove('active');
+      });
+      showToast('Filter dikembalikan ke default');
+      renderTable();
+    });
+
+    document.getElementById('btnExport').addEventListener('click', function() {
+      showToast('Export data Excel spreadsheet siap diunduh.');
+    });
+
+    document.getElementById('btnRefreshMonitor').addEventListener('click', function() {
+      showToast('Sinkronisasi ulang TV Monitor selesai.');
+      renderPhaseCards();
+      renderTable();
+    });
+
+    document.getElementById('tvPageButtons').addEventListener('click', function(e) {
+      var btn = e.target.closest('.tv-page-btn');
+      if (!btn) return;
+      activePage = parseInt(btn.getAttribute('data-page'), 10);
+      countdown = AUTO_INTERVAL;
+      renderTvButtons();
+      showToast('Menampilkan TV Layar Halaman ' + activePage);
+    });
+
+    document.getElementById('btnAuditPause').addEventListener('click', function() {
+      isPausedAudit = !isPausedAudit;
+      this.classList.toggle('active', isPausedAudit);
+      this.innerHTML = isPausedAudit ? '<i class="fas fa-play"></i>' : '<i class="fas fa-pause"></i>';
+      showToast(isPausedAudit ? 'Audit stream dijeda' : 'Audit stream dilanjutkan');
+    });
+
+    document.getElementById('btnAuditClear').addEventListener('click', function() {
+      auditLogs = [];
+      renderAuditLog();
+      showToast('Riwayat audit log dibersihkan');
+    });
+
+    setInterval(function() {
+      countdown--;
+      if (countdown <= 0) {
+        activePage = (activePage >= 3) ? 1 : activePage + 1;
+        countdown = AUTO_INTERVAL;
+        renderTvButtons();
+      }
+      document.getElementById('tvTimerSec').textContent = countdown + 's';
+      var fillPct = Math.round(((AUTO_INTERVAL - countdown) / AUTO_INTERVAL) * 100);
+      document.getElementById('tvTimerFill').style.width = fillPct + '%';
+    }, 1000);
+  }
+
+  // Boot
+  initData();
+  renderPhaseCards();
+  renderTable();
+  renderAuditLog();
+  renderTvButtons();
+  setupEvents();
+})();
+</script>
+
+
+</body></html>

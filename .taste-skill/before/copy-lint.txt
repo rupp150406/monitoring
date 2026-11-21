@@ -1,0 +1,17 @@
+﻿
+== pages/admin.vue  (4963 words)  1 FAIL, 2 WARN
+  FAIL copy-residue         chatbot residue, a template token, markdown or a [NEED] left on the page
+       - "{{ stat.label }}" in: <h3 class="text-xs font-semibold tracking-wider text-white/80 uppercase [font-family...
+       - "{{ stat.target }}" in: <span class="text-[10px] font-semibold text-white/40 uppercase [font-family:'JetBra...
+       - "{{ stat.pct }}" in: <span class="text-[38px] font-black tracking-[-0.03em] tabular-nums text-white [font-f...
+       - "{{ stat.selesai }}" in: <span class="text-[10px] text-white/40 uppercase [font-family:'JetBrains_Mono',mon...
+       fix: write the real words from the brief, or leave the element out and list what is missing in the report
+  WARN copy-em-dash         16 em dashes in the body (budget 2)
+       fix: use a comma, a colon, parentheses or a full stop where each is natural
+  WARN copy-exclaim         48 lines with an exclamation mark
+       - style: 'height: 100% !important; overflow: hidden !important;',
+       - style: 'height: 100% !important; overflow: hidden !important; background-color: #030712 !important; margin:...
+       - if (_toastTimer !== null) clearTimeout(_toastTimer);
+       - if (!feedEl.value) return;
+       fix: end on a full stop: copy.md bans exclamation marks
+  INFO copy-rhythm          62 sentences, mean 62.3 words, spread 81.0, 0% of 4 words or fewer

@@ -1,0 +1,78 @@
+{
+  "typography": {
+    "h1": {
+      "fontFamily": "\"Plus Jakarta Sans\", Raleway, sans-serif",
+      "fontSize": "14px",
+      "fontWeight": "800",
+      "lineHeight": "20px",
+      "color": "rgb(255, 255, 255)",
+      "letterSpacing": "-0.35px"
+    },
+    "cardTitle": {
+      "fontFamily": "\"JetBrains Mono\", monospace",
+      "fontSize": "12px",
+      "fontWeight": "600",
+      "color": "rgba(255, 255, 255, 0.8)"
+    },
+    "percentageNumber": {
+      "fontSize": "38px",
+      "fontWeight": "900",
+      "letterSpacing": "-1.14px"
+    },
+    "tableHeader": {
+      "fontSize": "11px",
+      "fontWeight": "700",
+      "textTransform": "uppercase",
+      "color": "rgba(255, 255, 255, 0.6)"
+    },
+    "tableCell": {
+      "fontSize": "11px",
+      "color": "rgba(255, 255, 255, 0.3)"
+    },
+    "searchInput": {
+      "fontSize": "12px",
+      "fontFamily": "\"JetBrains Mono\", monospace",
+      "color": "rgba(255, 255, 255, 0.8)"
+    }
+  },
+  "colors": {
+    "bodyBg": "rgb(3, 7, 18)",
+    "topbarBg": "rgba(2, 6, 23, 0.6)",
+    "deckCardBg": "rgba(255, 255, 255, 0.04)",
+    "deckCardBorder": "1px solid rgba(255, 255, 255, 0.08)",
+    "deckCardShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.37) 0px 8px 32px 0px, rgba(255, 255, 255, 0.08) 0px 1px 0px 0px inset",
+    "filterBarBg": "rgba(255, 255, 255, 0.04)",
+    "tableWrapBg": "rgba(255, 255, 255, 0.03)",
+    "asideBg": "rgba(255, 255, 255, 0.03)",
+    "footerBg": "rgba(2, 6, 23, 0.6)",
+    "btnAccentBg": "rgba(16, 185, 129, 0.25)",
+    "btnAccentColor": "rgb(167, 243, 208)"
+  },
+  "frame": {
+    "topbarHeight": 64,
+    "deckHeight": 191,
+    "filterBarHeight": 62,
+    "mainHeight": 531,
+    "asideWidth": 440,
+    "footerHeight": 38,
+    "deckCardRadius": "20px",
+    "filterBarRadius": "16px",
+    "tableWrapRadius": "20px",
+    "asideRadius": "20px"
+  },
+  "glassmorphism": {
+    "topbarBackdrop": "blur(40px)",
+    "deckCardBackdrop": "blur(40px)",
+    "filterBarBackdrop": "blur(40px)",
+    "tableWrapBackdrop": "blur(40px)",
+    "asideBackdrop": "blur(40px)",
+    "footerBackdrop": "blur(24px)"
+  },
+  "counts": {
+    "deckCards": 5,
+    "tableRows": 20,
+    "buttons": 239,
+    "logItems": 101,
+    "domNodes": 3049
+  }
+}

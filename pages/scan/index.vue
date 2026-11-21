@@ -7,14 +7,15 @@ definePageMeta({ layout: 'lapangan' });
 useHead({
   title: 'Qurban Scan | Scanner Lapangan',
   meta: [
-    { name: 'theme-color', content: '#ffffff' },
+    { name: 'theme-color', content: '#0A0E13' },
     { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover' },
     { name: 'apple-mobile-web-app-capable', content: 'yes' },
-    { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
   ],
   link: [
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap' },
   ],
 });
 
@@ -259,6 +260,28 @@ async function switchCamera() {
 
 const showCameraZone = computed(() => !currentGrup.value && !isLoading.value);
 
+// ─── Completion state ─────────────────────────────────────────────────────────
+// True once every QR-driven phase has closed. Drives the dedicated "complete"
+// layout (green banner + LENGKAP badge + SCAN LAGI) instead of the locked
+// action bar, which would otherwise read as an error when nothing is left to do.
+const isComplete = computed(() => {
+  const g = currentGrup.value;
+  if (!g) return false;
+  return g.status_kedatangan === 'Diterima'
+    && g.status_sembelihan === 'Selesai'
+    && g.status_pengulitan === 'Selesai';
+});
+
+// ─── Status dot ───────────────────────────────────────────────────────────────
+// Mint when the view is trustworthy (camera streaming, or a freshly loaded
+// result), amber while data is still being fetched, grey when the camera is
+// idle without a result.
+const statusDot = computed<'mint' | 'amber' | 'idle'>(() => {
+  if (isLoading.value) return 'amber';
+  if (showCameraZone.value) return isScannerRunning.value ? 'mint' : 'idle';
+  return 'mint';
+});
+
 // ─── Success overlay ──────────────────────────────────────────────────────────
 const showSuccessOverlay = ref(false);
 const successLabel       = ref('');
@@ -434,351 +457,336 @@ onUnmounted(async () => {
 </script>
 
 <template>
-  <div class="page-root">
+  <div class="scan-root">
+    <div class="mx-auto flex h-full w-full max-w-[430px] flex-col px-5 pt-5">
 
-    <!-- ── TOP NAV ─────────────────────────────────────────────────────────── -->
-    <nav class="topnav">
-      <div class="topnav-inner">
-        <!-- Left: back + operator -->
-        <div class="flex items-center gap-2">
-          <button class="back-btn" type="button" aria-label="Kembali" @click="goBack">
-            <span class="material-symbols-outlined" style="font-size:22px">arrow_back</span>
-          </button>
-          <!-- Operator name + role badge (desktop) -->
-          <div class="op-badge-wrap hidden sm:flex">
-            <span class="op-badge">{{ operatorNameInput || 'Panitia Lapangan' }}</span>
-            <div class="flex items-center gap-1.5">
-              <span class="op-badge-sub">Operator</span>
-              <span class="role-badge" :class="roleLabel.cls">{{ roleLabel.text }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Center: title -->
-        <span class="topnav-title">QURBAN SCANNER</span>
-
-        <!-- Right: operator badge (mobile) -->
-        <div class="flex items-center gap-1.5 sm:hidden">
-          <span 
-            v-if="operatorNameInput" 
-            class="role-badge" 
-            :class="roleLabel.cls"
-          >
-            {{ roleLabel.text }}
-          </span>
-          
-          <span class="op-badge-pill">
-            {{ operatorNameInput || 'Jamaah' }}
+      <!-- ── TOPBAR ──────────────────────────────────────────────────────── -->
+      <header class="flex h-[29px] shrink-0 items-center justify-between gap-2">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <h1 class="scan-display truncate text-[24px] font-black leading-none tracking-[-0.01em] text-white">
+            {{ showCameraZone ? 'SCAN QR' : 'HASIL SCAN' }}
+          </h1>
+          <span class="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+            <span v-if="statusDot === 'mint'" class="live-ping"></span>
+            <span class="live-dot" :class="`live-dot--${statusDot}`"></span>
           </span>
         </div>
-      </div>
-    </nav>
 
-    <!-- ── ERROR BANNER ──────────────────────────────────────────────────────── -->
-    <Transition name="banner">
-      <div v-if="hasError" class="error-banner">
-        <span class="error-icon">!</span>
-        <span class="error-msg">{{ errorMessage }}</span>
-        <button class="error-dismiss" @click="handleReset">TUTUP</button>
-      </div>
-    </Transition>
+        <span class="role-badge shrink-0" :class="roleLabel.cls">{{ roleLabel.text }}</span>
+      </header>
 
-    <!-- ── SCROLLABLE MAIN ───────────────────────────────────────────────────── -->
-    <main class="main-scroll">
-
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <!--  CAMERA ZONE                                                        -->
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <div v-if="showCameraZone">
-
-        <div class="camera-block">
-          <!-- Live badge -->
-          <div class="live-badge">
-            <span class="live-dot"></span>
-            <span class="live-label">LIVE</span>
-          </div>
-
-          <!-- QR reader viewport (4:3) -->
-          <div class="camera-viewport">
-            <div :id="READER_ID" ref="readerEl" class="w-full h-full block" />
-
-            <!-- Mounting spinner -->
-            <div v-if="isScannerMounting && !camError" class="cam-state-overlay">
-              <div class="spinner-ring"></div>
-              <span class="cam-state-text">Membuka kamera...</span>
-            </div>
-
-            <!-- Camera error -->
-            <Transition name="fade">
-              <div v-if="camError" class="cam-state-overlay cam-error-bg">
-                <div class="cam-error-icon-wrap">
-                  <span class="material-symbols-outlined" style="font-size:28px;color:#ef4444">no_photography</span>
-                </div>
-                <span class="cam-error-msg">{{ camError }}</span>
-                <button class="retry-btn" @click="() => { camError = ''; startScanner(); }">
-                  <span class="material-symbols-outlined" style="font-size:16px">refresh</span>
-                  Coba Lagi
-                </button>
-              </div>
-            </Transition>
-          </div>
-
-          <!-- Camera controls strip -->
-          <div class="cam-controls">
-            <button
-              class="cam-ctrl-btn"
-              :class="{ 'cam-ctrl-btn--active': isFlashOn }"
-              :disabled="!isScannerRunning"
-              @click="toggleFlash"
-            >
-              <span class="material-symbols-outlined" style="font-size:20px">
-                {{ isFlashOn ? 'flash_on' : 'flash_off' }}
-              </span>
-              Flash
-            </button>
-            <button
-              class="cam-ctrl-btn"
-              :disabled="!isScannerRunning"
-              @click="switchCamera"
-            >
-              <span class="material-symbols-outlined" style="font-size:20px">cameraswitch</span>
-              {{ isFrontCamera ? 'Depan' : 'Ubah' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Hint text below camera -->
-        <div class="scan-hint-strip">
-          <span class="material-symbols-outlined hint-icon">qr_code_2</span>
-          <p class="hint-text">Arahkan QR Code ke bingkai untuk memindai</p>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <!--  LOADING STATE                                                      -->
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner-ring spinner-ring--green"></div>
-        <span class="loading-text">Mengambil data dari server...</span>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <!--  DETAIL ZONE (after scan)                                          -->
-      <!-- ═══════════════════════════════════════════════════════════════════ -->
-      <div v-if="currentGrup && !isLoading" class="detail-zone">
-
-        <!-- ── Identity card ──────────────────────────────────────────────── -->
-        <div class="card">
-          <div class="flex items-start justify-between mb-3">
-            <div>
-              <div class="flex items-center gap-2 mb-2">
-                <span class="id-chip">{{ currentGrup.id_grup }}</span>
-                <span v-if="currentGrup.is_timer_active" class="timer-badge">
-                  <span class="material-symbols-outlined" style="font-size:12px">hourglass_bottom</span>
-                  TIMER AKTIF
-                </span>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <span style="font-size:2rem;line-height:1">{{ animalIcon(currentGrup.jenis_hewan) }}</span>
-                <h1 class="animal-name">{{ currentGrup.jenis_hewan ?? '—' }}</h1>
-              </div>
-            </div>
-            <span class="scan-ok-badge">
-              <span class="material-symbols-outlined" style="font-size:14px;font-variation-settings:'FILL' 1">check_circle</span>
-              Terpindai
-            </span>
-          </div>
-          <p v-if="currentGrup.label_tampilan" class="label-tampilan">{{ currentGrup.label_tampilan }}</p>
-        </div>
-
-        <!-- ── Scan detail: fase + operator + role ───────────────────────── -->
-        <div class="card">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="detail-cell">
-              <p class="detail-cell-label">Fase Berikutnya</p>
-              <p class="detail-cell-value">
-                <template v-if="resolvedAction && !('disabled' in resolvedAction)">
-                  {{ resolvedAction.label }}
-                </template>
-                <template v-else>
-                  <span class="text-muted-sm">{{ resolvedAction ? resolvedAction.reason : '—' }}</span>
-                </template>
-              </p>
-            </div>
-            <div class="detail-cell">
-              <p class="detail-cell-label">Operator</p>
-              <p class="detail-cell-value">{{ operatorNameInput || 'Panitia' }}</p>
-              <span class="role-badge mt-1" :class="roleLabel.cls">{{ roleLabel.text }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── Role access notice (shown when action is blocked) ──────────── -->
-        <Transition name="fade">
-          <div
-            v-if="resolvedAction && 'disabled' in resolvedAction"
-            class="role-notice"
-          >
-            <span class="material-symbols-outlined role-notice-icon">lock</span>
-            <div>
-              <p class="role-notice-title">Akses Dibatasi</p>
-              <p class="role-notice-msg">{{ resolvedAction.reason }}</p>
-            </div>
-          </div>
-        </Transition>
-
-        <!-- ── Sohibul card ────────────────────────────────────────────────── -->
-        <div class="card">
-          <p class="card-section-label">
-            Sohibul Qurban
-            <span v-if="currentGrup.sohibul_qurban?.length" class="text-[#006a61] font-bold">
-              ({{ currentGrup.sohibul_qurban.length }})
-            </span>
-          </p>
-          <div v-if="currentGrup.sohibul_qurban && currentGrup.sohibul_qurban.length > 0" class="sohibul-box">
-            <p class="sohibul-names">
-              {{ currentGrup.sohibul_qurban.map((s: any) => s.nama).join(', ') }}
-            </p>
-          </div>
-          <p v-else class="empty-text">Belum ada anggota tercatat</p>
-        </div>
-
-        <!-- ── Phase status ────────────────────────────────────────────────── -->
-        <div>
-          <p class="section-heading">Status Fase</p>
-          <div class="flex flex-col gap-3">
-
-            <!-- Fase 1: Kedatangan -->
-            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_kedatangan))">
-              <div class="phase-accent" :class="phaseAccentClass(phaseStatus(currentGrup.status_kedatangan))"></div>
-              <div
-                v-if="phaseStatus(currentGrup.status_kedatangan) === 'active'"
-                class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 border-white animate-pulse"
-                :class="phaseAccentClass(phaseStatus(currentGrup.status_kedatangan))"
-              ></div>
-              <div class="phase-body">
-                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_kedatangan))">
-                  {{ phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'FASE BERIKUTNYA' : 'FASE 1' }}
-                </p>
-                <p class="phase-title" :class="phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'phase-title--active' : ''">
-                  Kedatangan
-                </p>
-                <p class="phase-access-hint">Semua petugas</p>
-              </div>
-              <span class="phase-badge" :class="phaseBadgeClass(phaseStatus(currentGrup.status_kedatangan))">
-                {{ phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'Dalam Antrian' : currentGrup.status_kedatangan }}
-              </span>
-            </div>
-
-            <!-- Fase 2: Sembelihan -->
-            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_sembelihan))">
-              <div class="phase-accent" :class="phaseAccentClass(phaseStatus(currentGrup.status_sembelihan))"></div>
-              <div
-                v-if="phaseStatus(currentGrup.status_sembelihan) === 'active'"
-                class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 border-white animate-pulse"
-                :class="phaseAccentClass(phaseStatus(currentGrup.status_sembelihan))"
-              ></div>
-              <div class="phase-body">
-                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_sembelihan))">
-                  {{ phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'FASE BERIKUTNYA' : 'FASE 2' }}
-                </p>
-                <p class="phase-title" :class="phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'phase-title--active' : ''">
-                  Sembelihan
-                </p>
-                <p class="phase-access-hint">Petugas Sembelihan / Ketua</p>
-              </div>
-              <span class="phase-badge" :class="phaseBadgeClass(phaseStatus(currentGrup.status_sembelihan))">
-                {{ phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'Dalam Antrian' : currentGrup.status_sembelihan }}
-              </span>
-            </div>
-
-            <!-- Fase 3: Pengulitan (QR-scan starts it; timer finishes it) -->
-            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_pengulitan))">
-              <div class="phase-accent" :class="phaseAccentClass(phaseStatus(currentGrup.status_pengulitan))"></div>
-              <div
-                v-if="phaseStatus(currentGrup.status_pengulitan) === 'active'"
-                class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 border-white animate-pulse"
-                :class="phaseAccentClass(phaseStatus(currentGrup.status_pengulitan))"
-              ></div>
-              <div class="phase-body">
-                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_pengulitan))">
-                  {{ phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'SEDANG BERJALAN' : 'FASE 3' }}
-                </p>
-                <p class="phase-title" :class="phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'phase-title--active' : ''">
-                  Pengulitan
-                </p>
-                <p class="phase-access-hint">Petugas Pengulitan / Ketua · selesai via timer</p>
-              </div>
-              <span class="phase-badge" :class="phaseBadgeClass(phaseStatus(currentGrup.status_pengulitan))">
-                {{ phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'Proses' : currentGrup.status_pengulitan }}
-              </span>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Bottom spacer so content clears the fixed action bar -->
-        <div style="height: 140px"></div>
-
-      </div><!-- /detail-zone -->
-
-      <!-- ── SUCCESS OVERLAY ──────────────────────────────────────────────── -->
-      <Transition name="success">
-        <div v-if="showSuccessOverlay" class="success-overlay">
-          <div class="success-icon-wrap">
-            <span class="material-symbols-outlined success-icon" style="font-variation-settings:'FILL' 1">check_circle</span>
-          </div>
-          <span class="success-title">TERCATAT!</span>
-          <span class="success-label">{{ successLabel }}</span>
-          <span class="success-sub">Kembali ke mode scan...</span>
+      <!-- ── ERROR BANNER ────────────────────────────────────────────────── -->
+      <Transition name="fade">
+        <div v-if="hasError" class="mt-3.5 flex shrink-0 items-start gap-2 rounded-[18px] bg-[#2A1218] p-3">
+          <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-[#FDA4AF]">error</span>
+          <span class="min-w-0 flex-1 text-[12px] font-semibold leading-[1.4] text-[#FDA4AF]">{{ errorMessage }}</span>
+          <button
+            type="button"
+            class="shrink-0 text-[10px] font-extrabold tracking-[0.06em] text-[#FDA4AF]/80 transition-colors hover:text-[#FDA4AF]"
+            @click="handleReset"
+          >TUTUP</button>
         </div>
       </Transition>
 
-    </main>
+      <!-- ── MAIN ────────────────────────────────────────────────────────── -->
+      <main class="hide-scrollbar mt-3.5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2">
 
-    <!-- ── FIXED BOTTOM ACTION BAR ──────────────────────────────────────────── -->
-    <div v-if="currentGrup && !isLoading" class="action-bar">
-      <button
-        class="exec-btn"
-        :class="{
-          'exec-btn--disabled': isActionDisabled,
-          'exec-btn--loading':  isSubmitting,
-          'exec-btn--locked':   resolvedAction && 'disabled' in resolvedAction && !isSubmitting,
-        }"
-        :disabled="isActionDisabled"
-        @click="handleExecuteAction"
+        <!-- ══════════════ CAMERA STATE ══════════════ -->
+        <template v-if="showCameraZone">
+
+          <div class="camera-card">
+            <div class="camera-viewport">
+              <div :id="READER_ID" ref="readerEl" class="block h-full w-full" />
+
+              <!-- mounting -->
+              <div v-if="isScannerMounting && !camError" class="cam-overlay">
+                <span class="spinner-ring"></span>
+                <span class="cam-overlay-text">Membuka kamera...</span>
+              </div>
+
+              <!-- error -->
+              <Transition name="fade">
+                <div v-if="camError" class="cam-overlay cam-overlay--error">
+                  <span class="material-symbols-outlined text-[28px] text-[#FDA4AF]">no_photography</span>
+                  <span class="cam-overlay-text max-w-[280px] text-center">{{ camError }}</span>
+                  <button type="button" class="retry-btn" @click="() => { camError = ''; startScanner(); }">
+                    <span class="material-symbols-outlined text-[16px]">refresh</span>
+                    COBA LAGI
+                  </button>
+                </div>
+              </Transition>
+            </div>
+
+            <div class="grid shrink-0 grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                class="cam-btn"
+                :class="{ 'cam-btn--active': isFlashOn }"
+                :disabled="!isScannerRunning"
+                @click="toggleFlash"
+              >
+                <span class="material-symbols-outlined text-[18px]">{{ isFlashOn ? 'flash_on' : 'flash_off' }}</span>
+                FLASH
+              </button>
+              <button type="button" class="cam-btn" :disabled="!isScannerRunning" @click="switchCamera">
+                <span class="material-symbols-outlined text-[18px]">cameraswitch</span>
+                {{ isFrontCamera ? 'KAMERA DEPAN' : 'GANTI KAMERA' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="hint-strip">
+            <span class="material-symbols-outlined text-[18px] text-[#5B6776]">qr_code_2</span>
+            <p class="text-[12px] leading-[1.4] text-[#7D8A99]">Arahkan QR Code ke bingkai untuk memindai</p>
+          </div>
+        </template>
+
+        <!-- ══════════════ LOADING ══════════════ -->
+        <div v-else-if="isLoading" class="flex flex-1 flex-col items-center justify-center gap-4 py-20">
+          <span class="spinner-ring spinner-ring--mint"></span>
+          <span class="text-[12px] font-semibold text-[#7D8A99]">Mengambil data dari server...</span>
+        </div>
+
+        <!-- ══════════════ RESULT STATE ══════════════ -->
+        <template v-else-if="currentGrup">
+
+          <!-- Identity card -->
+          <section class="flex shrink-0 flex-col gap-2.5 rounded-[24px] bg-[#11171E] p-4">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center gap-2.5">
+                <span class="id-chip">{{ currentGrup.id_grup }}</span>
+                <span class="scan-display truncate text-[22px] font-extrabold leading-[27px] text-white">
+                  {{ currentGrup.jenis_hewan ?? '—' }}
+                </span>
+              </div>
+
+              <div class="flex shrink-0 items-center gap-1.5">
+                <span class="ok-badge">
+                  <span class="ok-dot"></span>
+                  TERPINDAI
+                </span>
+                <span v-if="isComplete" class="complete-badge">
+                  <span class="material-symbols-outlined text-[13px]">check</span>
+                  LENGKAP
+                </span>
+              </div>
+            </div>
+
+            <p v-if="currentGrup.label_tampilan" class="text-[12px] font-bold leading-[15px] text-[#5B6776]">
+              {{ currentGrup.label_tampilan }}
+            </p>
+          </section>
+
+          <!-- Complete banner -->
+          <section
+            v-if="isComplete"
+            class="flex shrink-0 flex-col items-center gap-2.5 rounded-[24px] bg-[#0F2D25] px-5 py-6 text-center"
+          >
+            <span class="flex h-14 w-14 items-center justify-center rounded-full bg-[#34D399]">
+              <span class="material-symbols-outlined text-[30px] text-[#052E22]" style="font-variation-settings:'wght' 700">check</span>
+            </span>
+            <span class="scan-display text-[16px] font-extrabold leading-[20px] text-white">SEMUA FASE SELESAI</span>
+            <span class="text-[12px] leading-[15px] text-[#6EE7B7]">Kedatangan · Sembelihan · Pengulitan</span>
+          </section>
+
+          <!-- Detail row -->
+          <div class="grid shrink-0 grid-cols-2 gap-2.5">
+            <div class="flex flex-col gap-1.5 rounded-[24px] bg-[#11171E] p-3.5">
+              <span class="text-[10px] font-bold uppercase leading-[12px] text-[#7D8A99]">
+                {{ isComplete ? 'STATUS' : 'FASE BERIKUTNYA' }}
+              </span>
+              <span
+                class="scan-display text-[13px] font-extrabold leading-[16px]"
+                :class="isComplete ? 'text-[#6EE7B7]' : 'text-[#FCD34D]'"
+              >
+                {{ isComplete ? 'LENGKAP' : grupActionLabel }}
+              </span>
+            </div>
+            <div class="flex flex-col gap-1.5 rounded-[24px] bg-[#11171E] p-3.5">
+              <span class="text-[10px] font-bold uppercase leading-[12px] text-[#7D8A99]">OPERATOR</span>
+              <span class="scan-display truncate text-[13px] font-extrabold leading-[16px] text-white">
+                {{ operatorNameInput || 'Panitia' }}
+              </span>
+              <span class="role-badge role-badge--sm self-start" :class="roleLabel.cls">{{ roleLabel.text }}</span>
+            </div>
+          </div>
+
+          <!-- Sohibul -->
+          <section class="flex shrink-0 flex-col gap-2.5 rounded-[24px] bg-[#11171E] p-4">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold uppercase leading-[12px] tracking-[0.06em] text-[#7D8A99]">
+                SOHIBUL QURBAN
+              </span>
+              <span v-if="currentGrup.sohibul_qurban?.length" class="count-chip">
+                {{ currentGrup.sohibul_qurban.length }}
+              </span>
+            </div>
+            <div class="rounded-[16px] bg-[#1B2530] px-3.5 py-3">
+              <p v-if="currentGrup.sohibul_qurban?.length" class="text-[13px] leading-[16px] text-[#E5ECF3]">
+                {{ currentGrup.sohibul_qurban.map((s: any) => s.nama).join(', ') }}
+              </p>
+              <p v-else class="text-[12px] italic leading-[15px] text-[#5B6776]">Belum ada anggota tercatat</p>
+            </div>
+          </section>
+
+          <!-- Status fase -->
+          <span class="shrink-0 text-[12px] font-bold leading-[15px] text-[#7D8A99]">STATUS FASE</span>
+
+          <div class="flex shrink-0 flex-col gap-2.5">
+
+            <!-- Fase 1 -->
+            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_kedatangan))">
+              <div class="min-w-0 flex-1">
+                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_kedatangan))">
+                  {{ phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'FASE BERIKUTNYA' : 'FASE 1' }}
+                </p>
+                <p
+                  class="scan-display font-extrabold text-white"
+                  :class="phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'text-[17px] leading-[21px]' : 'text-[15px] leading-[18px]'"
+                >Kedatangan</p>
+                <p class="mt-0.5 text-[11px] leading-[13px] text-[#5B6776]">Semua petugas</p>
+              </div>
+              <span class="phase-badge shrink-0" :class="phaseBadgeClass(phaseStatus(currentGrup.status_kedatangan))">
+                {{ phaseStatus(currentGrup.status_kedatangan) === 'active' ? 'DALAM ANTRIAN' : currentGrup.status_kedatangan }}
+              </span>
+            </div>
+
+            <!-- Fase 2 -->
+            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_sembelihan))">
+              <div class="min-w-0 flex-1">
+                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_sembelihan))">
+                  {{ phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'FASE BERIKUTNYA' : 'FASE 2' }}
+                </p>
+                <p
+                  class="scan-display font-extrabold text-white"
+                  :class="phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'text-[17px] leading-[21px]' : 'text-[15px] leading-[18px]'"
+                >Sembelihan</p>
+                <p class="mt-0.5 text-[11px] leading-[13px] text-[#5B6776]">Petugas Sembelihan / Ketua</p>
+              </div>
+              <span class="phase-badge shrink-0" :class="phaseBadgeClass(phaseStatus(currentGrup.status_sembelihan))">
+                {{ phaseStatus(currentGrup.status_sembelihan) === 'active' ? 'DALAM ANTRIAN' : currentGrup.status_sembelihan }}
+              </span>
+            </div>
+
+            <!-- Fase 3 -->
+            <div class="phase-row" :class="phaseRowClass(phaseStatus(currentGrup.status_pengulitan))">
+              <div class="min-w-0 flex-1">
+                <p class="phase-eyebrow" :class="phaseEyebrowClass(phaseStatus(currentGrup.status_pengulitan))">
+                  {{ phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'SEDANG BERJALAN' : 'FASE 3' }}
+                </p>
+                <p
+                  class="scan-display font-extrabold text-white"
+                  :class="phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'text-[17px] leading-[21px]' : 'text-[15px] leading-[18px]'"
+                >Pengulitan</p>
+                <p class="mt-0.5 text-[11px] leading-[13px] text-[#5B6776]">Petugas Pengulitan / Ketua</p>
+              </div>
+              <span class="phase-badge shrink-0" :class="phaseBadgeClass(phaseStatus(currentGrup.status_pengulitan))">
+                {{ phaseStatus(currentGrup.status_pengulitan) === 'active' ? 'PROSES' : currentGrup.status_pengulitan }}
+              </span>
+            </div>
+
+          </div>
+
+          <!-- Locked notice (only when NOT complete) -->
+          <Transition name="fade">
+            <div
+              v-if="!isComplete && resolvedAction && 'disabled' in resolvedAction"
+              class="flex shrink-0 items-start gap-2.5 rounded-[24px] bg-[#2A1218] p-4"
+            >
+              <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-[#FDA4AF]">lock</span>
+              <div class="min-w-0">
+                <p class="scan-display text-[12px] font-extrabold leading-[15px] text-[#FDA4AF]">AKSES DIBATASI</p>
+                <p class="mt-1 text-[11px] leading-[15px] text-[#FDA4AF]/80">{{ resolvedAction.reason }}</p>
+              </div>
+            </div>
+          </Transition>
+        </template>
+      </main>
+
+      <!-- ── FOOTER · camera ─────────────────────────────────────────────── -->
+      <footer
+        v-if="showCameraZone"
+        class="mt-3.5 flex h-[69px] shrink-0 items-center justify-between gap-3 rounded-[28px] bg-[#11171E] px-3.5"
       >
-        <span v-if="isSubmitting" class="material-symbols-outlined animate-spin" style="font-size:22px">progress_activity</span>
-        <span
-          v-else-if="resolvedAction && 'disabled' in resolvedAction"
-          class="material-symbols-outlined"
-          style="font-size:20px"
-        >lock</span>
-        <span
-          v-else-if="!isActionDisabled"
-          class="material-symbols-outlined"
-          style="font-size:22px;font-variation-settings:'FILL' 1"
-        >done_all</span>
-        {{ isSubmitting ? 'Menyimpan...' : grupActionLabel }}
-      </button>
-      <p class="exec-hint">
-        <template v-if="resolvedAction && !('disabled' in resolvedAction)">
-          Mengonfirmasi akan mencatat stempel waktu
-        </template>
-        <template v-else>
-          Tidak ada akses yang tersedia untuk <strong>{{ roleLabel.text }}</strong> pada fase ini
-        </template>
-      </p>
-      <button v-if="!isSubmitting" class="cancel-btn" @click="handleReset">
-        <span class="material-symbols-outlined" style="font-size:18px">arrow_back</span>
-        Batal / Scan Ulang
-      </button>
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <span class="text-[10px] font-bold uppercase leading-[12px] text-[#7D8A99]">Operator</span>
+          <span class="scan-display truncate text-[16px] font-extrabold leading-[20px] text-white">
+            {{ operatorNameInput || 'Petugas' }}
+          </span>
+        </div>
+        <button type="button" class="pill-btn" @click="goBack">
+          <span class="scan-display text-[12px] font-extrabold leading-none text-white">KEMBALI</span>
+        </button>
+      </footer>
+
+      <!-- ── FOOTER · complete ───────────────────────────────────────────── -->
+      <footer
+        v-else-if="isComplete"
+        class="mt-3.5 flex h-[69px] shrink-0 items-center justify-between gap-3 rounded-[28px] bg-[#11171E] px-3.5"
+      >
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <span class="text-[10px] font-bold uppercase leading-[12px] text-[#7D8A99]">Operator</span>
+          <span class="scan-display truncate text-[16px] font-extrabold leading-[20px] text-white">
+            {{ operatorNameInput || 'Petugas' }}
+          </span>
+        </div>
+        <button type="button" class="scan-again-btn" @click="handleReset">
+          <span class="scan-display text-[12px] font-extrabold leading-none text-[#052E22]">SCAN LAGI</span>
+        </button>
+      </footer>
+
+      <!-- ── FOOTER · result ─────────────────────────────────────────────── -->
+      <footer
+        v-else-if="currentGrup && !isLoading"
+        class="mt-3.5 flex shrink-0 flex-col gap-2 rounded-[28px] bg-[#11171E] p-3.5"
+      >
+        <button
+          type="button"
+          class="cta-btn"
+          :class="{ 'cta-btn--muted': isActionDisabled }"
+          :disabled="isActionDisabled"
+          @click="handleExecuteAction"
+        >
+          <span v-if="isSubmitting" class="material-symbols-outlined confirm-spinner text-[20px]">progress_activity</span>
+          <span v-else-if="resolvedAction && 'disabled' in resolvedAction" class="material-symbols-outlined text-[20px]">lock</span>
+          <span v-else class="material-symbols-outlined text-[20px]">done_all</span>
+          <span class="scan-display truncate text-[13px] font-extrabold leading-none">
+            {{ isSubmitting ? 'MENYIMPAN...' : grupActionLabel }}
+          </span>
+        </button>
+
+        <p class="text-center text-[11px] leading-[13px] text-[#7D8A99]">
+          <template v-if="resolvedAction && !('disabled' in resolvedAction)">
+            Mengonfirmasi akan mencatat stempel waktu
+          </template>
+          <template v-else>
+            Tidak ada akses untuk <span class="font-bold text-[#FCD34D]">{{ roleLabel.text }}</span> pada fase ini
+          </template>
+        </p>
+
+        <button type="button" class="ghost-btn" :disabled="isSubmitting" @click="handleReset">
+          <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+          <span class="scan-display text-[11px] font-extrabold leading-none text-white">BATAL / SCAN ULANG</span>
+        </button>
+      </footer>
+
     </div>
 
+    <!-- ── SUCCESS OVERLAY ───────────────────────────────────────────────── -->
+    <Transition name="success">
+      <div v-if="showSuccessOverlay" class="success-overlay">
+        <span class="flex h-20 w-20 items-center justify-center rounded-full bg-[#34D399]">
+          <span class="material-symbols-outlined text-[42px] text-[#052E22]" style="font-variation-settings:'wght' 700">check</span>
+        </span>
+        <span class="scan-display text-[26px] font-black leading-none text-white">TERCATAT!</span>
+        <span class="scan-display max-w-[280px] text-center text-[12px] font-extrabold leading-[1.5] tracking-[0.04em] text-[#6EE7B7]">
+          {{ successLabel }}
+        </span>
+        <span class="animate-pulse text-[11px] tracking-[0.04em] text-[#7D8A99]">Kembali ke mode scan...</span>
+      </div>
+    </Transition>
   </div>
 </template>
-
-
 
 <style>
 /* ── html5-qrcode suppression ─────────────────────────────────────────────── */
@@ -787,396 +795,481 @@ onUnmounted(async () => {
 #qr-reader-scan-gate__dashboard,
 #qr-reader-scan-gate__status_span,
 #qr-reader-scan-gate select,
-#qr-reader-scan-gate button { display: none !important; }
-#qr-reader-scan-gate__scan_region { border: none !important; padding: 0 !important; }
+#qr-reader-scan-gate input,
+#qr-reader-scan-gate button {
+  display: none !important;
+}
 #qr-reader-scan-gate video {
-  width: 100% !important; height: 100% !important;
-  object-fit: cover !important; transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  border-radius: 20px;
+}
+#qr-reader-scan-gate canvas {
+  display: none !important;
+}
+
+/* ── Material Symbols ────────────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
+@keyframes qc-ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+@keyframes qc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Scrollbar hide ─────────────────────────────────────────────────────────── */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+body {
+  overscroll-behavior-y: none;
+  background-color: #0A0E13;
+  color: #E6EDF3;
+  margin: 0;
+  padding: 0;
 }
 </style>
 
 <style scoped>
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  ROOT & LAYOUT                                                               */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.page-root {
-  height: 100dvh;
-  max-height: 100dvh;
+/* ══════════════════════════════════════════════════════════════════════════════
+   ROOT
+   ═══════════════��══════════════════════════════════════════════════════════════ */
+.scan-root {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: #f6fafe;
-  color: #171c1f;
+  background-color: #0A0E13;
   font-family: 'Inter', sans-serif;
-  overscroll-behavior: none;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  color: #E6EDF3;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  TOP NAV                                                                     */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.topnav {
-  position: sticky; top: 0; z-index: 50;
-  background: #ffffff;
-  border-bottom: 1px solid #E2E8F0;
-  flex-shrink: 0;
+.scan-display {
+  font-family: 'Montserrat', 'Inter', sans-serif;
 }
-.topnav-inner {
-  display: flex; align-items: center; justify-content: space-between;
-  height: 56px; padding: 0 16px; width: 100%;
-}
-.topnav-title { font-size: 18px; font-weight: 700; color: #003527; letter-spacing: -0.01em; }
-.back-btn {
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: none; color: #003527; cursor: pointer;
-  border-radius: 9999px; transition: background 0.15s; flex-shrink: 0;
-}
-.back-btn:active { background: #eaeef2; }
 
-/* Operator badge (mobile) */
-.op-badge-pill {
-  background: #eaeef2; border: 1px solid #E2E8F0; border-radius: 9999px;
-  color: #171c1f; font-size: 12px; font-weight: 600; padding: 3px 12px;
-  max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* Operator badge (desktop) */
-.op-badge-wrap { flex-direction: column; gap: 2px; align-items: flex-start; }
-.op-badge {
-  font-size: 13px; font-weight: 600; color: #171c1f;
-  background: #eaeef2; border: 1px solid #E2E8F0;
-  border-radius: 0.375rem; padding: 3px 10px;
-}
-.op-badge-sub { font-size: 10px; color: #707974; padding-left: 2px; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  ROLE BADGES                                                                 */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.role-badge {
-  display: inline-flex; align-items: center;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  border-radius: 9999px; padding: 2px 8px;
-  border: 1px solid transparent; text-transform: uppercase;
-}
-.role-badge--ketua      { background: #DBEAFE; color: #1D4ED8; border-color: rgba(29,78,216,0.25); }
-.role-badge--sembelihan { background: #FEE2E2; color: #B91C1C; border-color: rgba(185,28,28,0.25); }
-.role-badge--pengulitan { background: #FEF3C7; color: #B45309; border-color: rgba(180,83,9,0.25); }
-.role-badge--guest      { background: #f0f4f8; color: #707974; border-color: #bfc9c3; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  ROLE ACCESS NOTICE                                                          */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.role-notice {
-  display: flex; align-items: flex-start; gap: 12px;
-  background: #FFFBEB; border: 1px solid rgba(245,158,11,0.35);
-  border-radius: 0.75rem; padding: 14px 16px;
-}
-.role-notice-icon { font-size: 20px; color: #D97706; flex-shrink: 0; margin-top: 1px; }
-.role-notice-title { font-size: 13px; font-weight: 700; color: #92400E; margin-bottom: 3px; }
-.role-notice-msg   { font-size: 12px; color: #B45309; line-height: 1.5; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  ERROR BANNER                                                                */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.error-banner {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 16px;
-  background: rgba(239,68,68,0.06); border-bottom: 1px solid rgba(239,68,68,0.3);
-  flex-shrink: 0; z-index: 40;
-}
-.error-icon {
-  width: 18px; height: 18px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: #EF4444; color: #fff; border-radius: 9999px;
-  font-size: 11px; font-weight: 700; font-style: normal; margin-top: 1px;
-}
-.error-msg { font-size: 12px; color: #b91c1c; flex: 1; line-height: 1.5; }
-.error-dismiss {
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
-  color: #b91c1c; border: 1px solid rgba(185,28,28,0.3);
-  background: transparent; padding: 4px 10px; cursor: pointer;
-  border-radius: 0.25rem; flex-shrink: 0; min-height: 36px;
-  display: flex; align-items: center; transition: background 0.15s;
-}
-.error-dismiss:active { background: rgba(185,28,28,0.06); }
-.banner-enter-active, .banner-leave-active { transition: all 0.2s ease; }
-.banner-enter-from, .banner-leave-to { opacity: 0; transform: translateY(-6px); }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  MAIN SCROLL                                                                 */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.main-scroll {
-  flex: 1; min-height: 0;
-  overflow-y: auto; -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain; position: relative;
-}
-.main-scroll::-webkit-scrollbar { width: 3px; }
-.main-scroll::-webkit-scrollbar-track { background: transparent; }
-.main-scroll::-webkit-scrollbar-thumb { background: #bfc9c3; border-radius: 3px; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  CAMERA BLOCK                                                                */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.camera-block { background: #022C22; position: relative; width: 100%; }
-
-.live-badge {
-  position: absolute; top: 12px; right: 12px; z-index: 20;
-  display: flex; align-items: center; gap: 6px;
-  background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.1); border-radius: 9999px; padding: 4px 12px;
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIVE DOT
+   ══════════════════════════════════════════════════════════════════════════════ */
+.live-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: #34D399;
+  opacity: 0.7;
+  animation: qc-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 .live-dot {
-  width: 8px; height: 8px; border-radius: 9999px;
-  background: #16A34A; animation: pulse 1.5s ease-in-out infinite;
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
 }
-.live-label { font-size: 11px; font-weight: 700; color: #fff; letter-spacing: 0.1em; }
+.live-dot--mint  { background: #34D399; }
+.live-dot--amber { background: #FCD34D; }
+.live-dot--idle  { background: #5B6776; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ROLE BADGE
+   ══════════════════════════════════════════════════════════════════════════════ */
+.role-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0 10px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.role-badge--sm {
+  height: 19px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+.role-badge--ketua       { background: #10253C; color: #93C5FD; }
+.role-badge--sembelihan  { background: #33260C; color: #FCD34D; }
+.role-badge--pengulitan  { background: #271F45; color: #C4B5FD; }
+.role-badge--guest       { background: #1B2530; color: #9AA7B5; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CAMERA
+   ══════════════════════════════════════════════════════════════════════════════ */
+.camera-card {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 28px;
+  background: #11171E;
+  padding: 10px;
+}
 
 .camera-viewport {
-  position: relative; width: 100%; aspect-ratio: 4/3;
-  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #070C11;
 }
 
-.cam-state-overlay {
-  position: absolute; inset: 0; z-index: 30;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 14px; padding: 24px; text-align: center;
-  background: rgba(2,44,34,0.88); pointer-events: none;
+.cam-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(7, 12, 17, 0.92);
+  padding: 20px;
 }
-.cam-error-bg { background: rgba(2,44,34,0.97); pointer-events: all; }
-.cam-error-icon-wrap {
-  width: 56px; height: 56px; border-radius: 9999px;
-  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
-  display: flex; align-items: center; justify-content: center;
+.cam-overlay--error { background: rgba(7, 12, 17, 0.97); }
+.cam-overlay-text {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #7D8A99;
 }
-.cam-error-msg { font-size: 13px; color: #fca5a5; line-height: 1.6; max-width: 300px; }
+
+.cam-btn {
+  display: flex;
+  height: 41px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 20px;
+  background: #1B2530;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #E6EDF3;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cam-btn:hover:not(:disabled)  { background: #223040; }
+.cam-btn:active:not(:disabled) { transform: scale(0.98); }
+.cam-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cam-btn--active {
+  background: #33260C;
+  color: #FCD34D;
+}
+
 .retry-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
-  color: #fff; background: #006a61; border: none; border-radius: 0.5rem;
-  padding: 12px 24px; cursor: pointer; min-height: 44px; transition: background 0.15s;
-}
-.retry-btn:active { background: #005049; }
-.cam-state-text { font-size: 12px; font-weight: 500; color: #80bea6; letter-spacing: 0.04em; }
-
-.cam-controls {
-  display: flex; gap: 12px; padding: 10px 12px;
-  background: #ffffff; border-top: 1px solid #E2E8F0;
-}
-.cam-ctrl-btn {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
-  color: #171c1f; background: #f0f4f8; border: 1px solid #E2E8F0;
-  border-radius: 0.5rem; height: 44px; cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.cam-ctrl-btn:active { background: #eaeef2; }
-.cam-ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.cam-ctrl-btn--active { color: #D97706; border-color: rgba(245,158,11,0.35); background: #FEF3C7; }
-
-.scan-hint-strip {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px; padding: 40px 24px; min-height: 180px;
-  text-align: center; background: #f6fafe;
-}
-.hint-icon { font-size: 3rem; color: #bfc9c3; }
-.hint-text { font-size: 13px; color: #707974; font-weight: 500; max-width: 260px; line-height: 1.5; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  LOADING STATE                                                               */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.loading-state {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 16px; padding: 80px 24px;
-}
-.loading-text {
-  font-size: 13px; font-weight: 500; color: #707974;
-  animation: pulse-op 1.2s ease-in-out infinite;
-}
-@keyframes pulse-op { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  DETAIL ZONE                                                                 */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.detail-zone {
-  display: flex; flex-direction: column;
-  gap: 12px; padding: 16px;
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 18px;
+  background: #34D399;
+  padding: 0 18px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #052E22;
+  cursor: pointer;
 }
 
-.card {
-  background: #ffffff; border: 1px solid #E2E8F0;
-  border-radius: 0.75rem; padding: 16px 18px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+.hint-strip {
+  display: flex;
+  height: 56px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 20px;
+  padding: 0 16px;
+  text-align: center;
 }
 
-/* Identity card */
-.id-chip {
-  font-size: 13px; font-weight: 700; color: #003527;
-  border: 1px solid #064e3b; background: rgba(6,78,59,0.06);
-  border-radius: 0.25rem; padding: 3px 10px; letter-spacing: 0.05em;
-}
-.timer-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 600; color: #D97706;
-  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
-  border-radius: 9999px; padding: 2px 8px;
-  animation: pulse-op 1.6s ease-in-out infinite;
-}
-.animal-name { font-size: 26px; font-weight: 700; color: #171c1f; letter-spacing: -0.02em; text-transform: capitalize; }
-.scan-ok-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 600; color: #16A34A; flex-shrink: 0;
-}
-.label-tampilan { font-size: 11px; color: #707974; letter-spacing: 0.03em; }
-
-/* Detail grid cells */
-.detail-cell { background: #f0f4f8; padding: 10px 12px; border-radius: 0.5rem; }
-.detail-cell-label { font-size: 10px; font-weight: 600; color: #707974; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
-.detail-cell-value { font-size: 13px; font-weight: 600; color: #171c1f; }
-.text-muted-sm { font-size: 11px; font-weight: 500; color: #B45309; }
-
-/* Sohibul */
-.card-section-label { font-size: 10px; font-weight: 600; color: #707974; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
-.sohibul-box { background: #f0f4f8; border: 1px solid #E2E8F0; border-radius: 0.5rem; padding: 10px 12px; }
-.sohibul-names { font-size: 13px; color: #171c1f; line-height: 1.6; }
-.empty-text { font-size: 12px; color: #707974; font-style: italic; }
-
-/* Section heading */
-.section-heading { font-size: 18px; font-weight: 600; color: #003527; margin-bottom: 12px; padding: 0 2px; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  PHASE ROWS                                                                  */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.phase-row {
-  background: #ffffff; border: 1px solid #E2E8F0; border-radius: 0.75rem;
-  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
-  position: relative; overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.phase-row--completed { border-color: #16A34A; }
-.phase-row--active    { border-color: #F59E0B; border-width: 2px; box-shadow: 0 2px 8px rgba(245,158,11,0.12); }
-.phase-row--pending   { opacity: 0.65; }
-
-/* Left accent bar */
-.phase-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
-
-.phase-body { margin-left: 12px; }
-.phase-eyebrow {
-  font-size: 9px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.1em; margin-bottom: 3px;
-}
-.phase-title       { font-size: 16px; font-weight: 600; color: #171c1f; }
-.phase-title--active { font-size: 18px; font-weight: 700; }
-.phase-access-hint { font-size: 10px; color: #707974; margin-top: 4px; }
-
-/* Phase badge pills */
-.phase-badge {
-  border-radius: 9999px; padding: 5px 12px;
-  font-size: 11px; font-weight: 600; border: 1px solid transparent; flex-shrink: 0;
-}
-.phase-badge--completed { background: #DCFCE7; color: #16A34A; border-color: rgba(22,163,74,0.3); }
-.phase-badge--active    { background: #FEF3C7; color: #D97706; border-color: rgba(245,158,11,0.3); }
-.phase-badge--pending   { background: #f0f4f8; color: #707974; border-color: #bfc9c3; }
-
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  SPINNERS                                                                    */
-/* ════════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   SPINNERS
+   ══════════════════════════════════════════════════════════════════════════════ */
 .spinner-ring {
-  width: 28px; height: 28px;
-  border: 3px solid rgba(255,255,255,0.15); border-top-color: #95d3ba;
-  border-radius: 9999px; animation: spin 0.9s linear infinite;
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(52, 211, 153, 0.18);
+  border-top-color: #34D399;
+  border-radius: 9999px;
+  animation: qc-spin 0.9s linear infinite;
 }
-.spinner-ring--green { border-color: rgba(0,106,97,0.15); border-top-color: #006a61; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.spinner-ring--mint {
+  width: 30px;
+  height: 30px;
+  border-color: rgba(52, 211, 153, 0.18);
+  border-top-color: #34D399;
+}
+.confirm-spinner { animation: qc-spin 0.9s linear infinite; }
 
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  FIXED ACTION BAR                                                            */
-/* ════════════════════════════════════════════════════════════════════════════ */
-.action-bar {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: #ffffff; border-top: 1px solid #E2E8F0;
-  padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
-  box-shadow: 0 -4px 10px rgba(0,0,0,0.06);
-  z-index: 40; display: flex; flex-direction: column; gap: 6px;
+/* ══════════════════════════════════════════════════════════════════════════════
+   RESULT CARDS
+   ═══════════════��══════════════════════════════════════════════════════════════ */
+.id-chip {
+  display: inline-flex;
+  height: 33px;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 12px;
+  background: #1B2530;
+  padding: 0 8px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 17px;
+  color: #FFFFFF;
 }
 
-.exec-btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; height: 56px;
-  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 700;
-  letter-spacing: 0.02em; border: none; border-radius: 0.75rem;
-  background: #003527; color: #ffffff; cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.12);
-  transition: background 0.15s, transform 0.08s, box-shadow 0.15s;
-  touch-action: manipulation;
+.ok-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  background: #0F2D25;
+  padding: 0 10px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: #6EE7B7;
+  white-space: nowrap;
 }
-.exec-btn:not(.exec-btn--disabled):not(.exec-btn--loading):not(.exec-btn--locked):active {
-  transform: scale(0.98); background: #022C22;
+.ok-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #6EE7B7;
 }
-.exec-btn:not(.exec-btn--disabled):not(.exec-btn--loading):not(.exec-btn--locked):hover {
-  background: #022C22; box-shadow: 0 4px 12px rgba(0,53,39,0.3);
-}
-.exec-btn--disabled { background: #eaeef2; color: #bfc9c3; cursor: not-allowed; box-shadow: none; }
-.exec-btn--locked   { background: #f0f4f8; color: #9ca3af; cursor: not-allowed; box-shadow: none; border: 1px dashed #d1d5db; }
-.exec-btn--loading  { background: rgba(0,53,39,0.6); cursor: wait; }
 
-.exec-hint {
-  text-align: center; font-size: 11px; color: #707974;
-  margin: 0; padding: 0 8px; line-height: 1.4;
+.complete-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  background: #34D399;
+  padding: 0 10px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: #052E22;
+  white-space: nowrap;
 }
-.exec-hint strong { color: #B45309; }
 
-.cancel-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; min-height: 40px;
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
-  color: #707974; background: transparent;
-  border: 1px solid #E2E8F0; border-radius: 0.5rem; cursor: pointer;
-  transition: border-color 0.15s, color 0.15s; touch-action: manipulation;
+.count-chip {
+  display: inline-flex;
+  height: 21px;
+  align-items: center;
+  border-radius: 9999px;
+  background: #0F2D25;
+  padding: 0 8px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #6EE7B7;
 }
-.cancel-btn:active { border-color: #003527; color: #003527; }
 
-/* ════════════════════════════════════════════════════════════════════════════ */
-/*  SUCCESS OVERLAY                                                             */
-/* ════════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   PHASE ROWS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 20px;
+  background: #11171E;
+  padding: 14px 16px;
+  transition: background 0.2s;
+}
+.phase-row--completed { background: #11171E; }
+.phase-row--active    { background: #141A22; }
+.phase-row--pending   { background: #0E141A; }
+
+.phase-eyebrow {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.phase-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0 8px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.phase-badge--completed { background: #0F2D25; color: #6EE7B7; }
+.phase-badge--active    { background: #33260C; color: #FCD34D; }
+.phase-badge--pending   { background: #1B2530; color: #9AA7B5; }
+
+/* accent + eyebrow colour helpers (returned by the script helpers) */
+.bg-green  { background-color: #34D399; }
+.bg-amber  { background-color: #FCD34D; }
+.bg-muted  { background-color: #5B6776; }
+.clr-amber  { color: #FCD34D; }
+.clr-muted  { color: #7D8A99; }
+.clr-subtle { color: #5B6776; }
+
+/* ══════════════���═══════════════════════════════════════════════════════════════
+   FOOTER BUTTONS
+   ══════════════════════════���═══════════════════════════════════════════════════ */
+.pill-btn {
+  display: flex;
+  height: 41px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 20px;
+  background: #1B2530;
+  padding: 0 13px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.pill-btn:hover  { background: #223040; }
+.pill-btn:active { transform: scale(0.98); }
+
+.scan-again-btn {
+  display: flex;
+  height: 41px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 20px;
+  background: #34D399;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.scan-again-btn:hover  { background: #3EE0A5; }
+.scan-again-btn:active { transform: scale(0.98); }
+
+.cta-btn {
+  display: flex;
+  width: 100%;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 20px;
+  background: #34D399;
+  color: #052E22;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cta-btn:hover:not(:disabled)  { background: #3EE0A5; }
+.cta-btn:active:not(:disabled) { transform: scale(0.99); }
+.cta-btn--muted,
+.cta-btn:disabled {
+  background: #1B2530;
+  color: #5B6776;
+  cursor: not-allowed;
+}
+
+.ghost-btn {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 20px;
+  background: #1B2530;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ghost-btn:hover:not(:disabled)  { background: #223040; }
+.ghost-btn:active:not(:disabled) { transform: scale(0.98); }
+.ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SUCCESS OVERLAY
+   ══════════════════════════════════════════════════════════════════════════════ */
 .success-overlay {
-  position: fixed; inset: 0; z-index: 60;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  background: rgba(246,250,254,0.97);
-  gap: 14px; text-align: center; padding: 24px;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(10, 14, 19, 0.97);
+  padding: 24px;
+  text-align: center;
 }
-.success-icon-wrap {
-  width: 80px; height: 80px; border-radius: 9999px;
-  background: rgba(22,163,74,0.1); border: 2px solid rgba(22,163,74,0.3);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 28px rgba(22,163,74,0.2), 0 0 56px rgba(22,163,74,0.08);
-}
-.success-icon  { font-size: 88px; color: #16A34A; }
-.success-title { font-size: 30px; font-weight: 700; color: #003527; letter-spacing: -0.02em; }
-.success-label { font-size: 13px; font-weight: 600; color: #006a61; letter-spacing: 0.04em; text-transform: uppercase; max-width: 280px; line-height: 1.5; }
-.success-sub   { font-size: 11px; color: #707974; letter-spacing: 0.04em; animation: pulse-op 1s ease-in-out infinite; }
 
 .success-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .success-leave-active { transition: opacity 0.22s ease; }
 .success-enter-from   { opacity: 0; transform: scale(0.97); }
 .success-leave-to     { opacity: 0; }
 
-/* Accent colors */
-.bg-green  { background-color: #16A34A; }
-.bg-amber  { background-color: #F59E0B; }
-.bg-muted  { background-color: #bfc9c3; }
-.clr-amber  { color: #D97706; }
-.clr-muted  { color: #707974; }
-.clr-subtle { color: #bfc9c3; }
-
+/* ══════════════════════════════════════════════════════════════════════════════
+   TRANSITIONS
+   ══════════════════════════���═══════════════════════════════════════════════════ */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-ping, .spinner-ring, .confirm-spinner { animation: none; }
+}
 </style>

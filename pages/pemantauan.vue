@@ -9,13 +9,14 @@ definePageMeta({ layout: 'lapangan' })
 useHead({
   title: 'Pemantauan Qurban | Live Monitor',
   meta: [
-    { name: 'theme-color', content: '#f6fafe' },
+    { name: 'theme-color', content: '#0A0E13' },
     { name: 'viewport', content: 'width=device-width, initial-scale=1.0, viewport-fit=cover' },
   ],
   link: [
     { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
     { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap' },
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
   ],
 })
@@ -356,51 +357,44 @@ onUnmounted(() => {
   <div class="page-root">
 
     <header class="pm-header">
-      <div class="pm-header-row1">
-        <h1 class="pm-title">
-          PEMANTAUAN
-          <span class="pm-live-dot-wrap">
-            <span class="pm-live-dot-ping" :class="{ 'is-syncing': isSyncing }"></span>
-            <span class="pm-live-dot-core" :class="isSyncing ? 'is-syncing' : 'is-idle'"></span>
-          </span>
-        </h1>
-        <div class="pm-op-chip">
-          <span class="material-symbols-outlined" style="font-size:15px;color:#707974">badge</span>
-          <span class="pm-op-name">{{ operatorName }}</span>
-        </div>
-      </div>
+      <h1 class="pm-title">
+        PEMANTAUAN
+        <span class="pm-live-dot-wrap">
+          <span class="pm-live-dot-ping" :class="{ 'is-syncing': isSyncing }"></span>
+          <span class="pm-live-dot-core" :class="isSyncing ? 'is-syncing' : 'is-idle'"></span>
+        </span>
+      </h1>
+    </header>
 
-      <div class="pm-search-bar">
-        <div class="pm-search-inner">
-          <span class="material-symbols-outlined" style="font-size:20px">search</span>
-          <input
-            v-model="searchQuery"
-            class="pm-search-input"
-            placeholder="Cari ID, Jenis, atau Sohibul..."
-            type="text"
-          >
-          <button v-if="searchQuery" class="pm-search-clear" type="button" @click="searchQuery = ''">
-            <span class="material-symbols-outlined" style="font-size:18px">close</span>
-          </button>
-        </div>
-        <button
-          class="pm-filter-btn"
-          :class="isFiltered ? 'is-active' : ''"
-          type="button"
-          @click="cycleFilter"
+    <div class="pm-search-bar">
+      <div class="pm-search-inner">
+        <span class="material-symbols-outlined pm-search-icon">search</span>
+        <input
+          v-model="searchQuery"
+          class="pm-search-input"
+          placeholder="Cari ID, Jenis, atau Sohibul..."
+          type="text"
         >
-          <span class="material-symbols-outlined" style="font-size:16px">filter_list</span>
-          {{ filterLabel }}
+        <button v-if="searchQuery" class="pm-search-clear" type="button" @click="searchQuery = ''">
+          <span class="material-symbols-outlined pm-search-clear-icon">close</span>
         </button>
       </div>
-    </header>
+      <button
+        class="pm-filter-btn"
+        :class="isFiltered ? 'is-active' : ''"
+        type="button"
+        @click="cycleFilter"
+      >
+        <span class="material-symbols-outlined pm-filter-icon">filter_list</span>
+        <span class="pm-filter-label">{{ filterLabel }}</span>
+      </button>
+    </div>
 
     <div class="pm-subheader">
       <span class="pm-subheader-label">ANTRIAN BERJALAN</span>
       <div class="pm-subheader-counts">
-        <span class="count-active">{{ countProses }} aktif</span>
-        <span class="count-sep">·</span>
-        <span class="count-shown">{{ displayList.length }} tampil</span>
+        <span class="count-chip count-chip--active">{{ countProses }} aktif</span>
+        <span class="count-chip count-chip--shown">{{ displayList.length }} tampil</span>
       </div>
     </div>
 
@@ -457,65 +451,68 @@ onUnmounted(() => {
           v-for="item in displayList"
           :key="item.grup.id_grup"
           class="card"
-          :class="item.status === 'PROSES' ? 'card--proses' : 'card--default'"
         >
-<div class="card-top">
-  <div class="card-id-col">
-    <span class="card-id" :class="item.status === 'BELUM' ? 'is-dim' : ''">{{ item.grup.id_grup }}</span>
-    <div class="card-meta">
-      <span class="card-jenis" :class="item.status === 'BELUM' ? 'is-dim' : ''">{{ item.grup.jenis_hewan ?? '—' }}</span>
-      <!-- Overall card time now reflects the CURRENT active phase only -->
-      <span class="card-time" :class="item.status === 'BELUM' ? 'is-dim' : ''">{{ item.timeInfo }}</span>
-    </div>
-  </div>
-  <span v-if="item.status === 'SELESAI'" class="badge badge--selesai">SELESAI</span>
-  <span v-else-if="item.status === 'PROSES'" class="badge badge--proses">PROSES</span>
-  <span v-else class="badge badge--belum">BELUM</span>
-</div>
+          <div class="card-row">
+            <div class="card-identity">
+              <span class="card-id-chip">
+                <span class="card-id">{{ item.grup.id_grup }}</span>
+              </span>
+              <span class="card-jenis" :class="item.status === 'BELUM' ? 'is-dim' : ''">{{ item.grup.jenis_hewan ?? '—' }}</span>
+            </div>
+            <span v-if="item.status === 'SELESAI'" class="badge badge--selesai">SELESAI</span>
+            <span v-else-if="item.status === 'PROSES'" class="badge badge--proses">
+              <span class="badge-dot"></span>PROSES
+            </span>
+            <span v-else class="badge badge--belum">BELUM</span>
+          </div>
 
-<div class="pipeline">
-  <template v-for="(node, i) in item.pipeline.nodes" :key="i">
-    <div class="pipeline-node">
-      <div
-        class="node-circle"
-        :class="
-          node.state === 'done'    ? 'node--done'    :
-          (node.state === 'active' || node.state === 'transit') ? 'node--active' :
-          'node--pending'
-        "
-      >
-        <span v-if="node.state === 'done'"    class="material-symbols-outlined node-icon">check</span>
-        <span v-else-if="node.state === 'active'"  class="material-symbols-outlined node-icon spin">sync</span>
-        <span v-else-if="node.state === 'transit'" class="material-symbols-outlined node-icon">local_shipping</span>
-      </div>
-      <span
-        class="node-label"
-        :class="
-          node.state === 'done'    ? 'label--done'   :
-          (node.state === 'active' || node.state === 'transit') ? 'label--active' :
-          'label--pending'
-        "
-      >{{ node.label }}</span>
-      <!-- Per-phase timestamp sits directly under each node label -->
-      <span
-        v-if="node.timestamp"
-        class="node-time"
-        :class="node.state === 'done' ? 'node-time--done' : 'node-time--active'"
-      >{{ node.timestamp }}</span>
-    </div>
-    <div
-      v-if="i < item.pipeline.lines.length"
-      class="pipeline-line"
-      :class="item.pipeline.lines[i] === 'done' ? 'line--done' : 'line--pending'"
-    >
-      <div v-if="item.pipeline.lines[i] === 'active'" class="shimmer-line"></div>
-    </div>
-  </template>
-</div>
+          <div class="pipeline">
+            <template v-for="(node, i) in item.pipeline.nodes" :key="i">
+              <div class="pipeline-node">
+                <div
+                  class="node-circle"
+                  :class="
+                    node.state === 'done'    ? 'node--done'    :
+                    (node.state === 'active' || node.state === 'transit') ? 'node--active' :
+                    'node--pending'
+                  "
+                >
+                  <span v-if="node.state === 'done'"    class="material-symbols-outlined node-icon">check</span>
+                  <span v-else-if="node.state === 'active'"  class="material-symbols-outlined node-icon spin">sync</span>
+                  <span v-else-if="node.state === 'transit'" class="material-symbols-outlined node-icon">local_shipping</span>
+                </div>
+                <span
+                  class="node-label"
+                  :class="
+                    node.state === 'done'    ? 'label--done'   :
+                    (node.state === 'active' || node.state === 'transit') ? 'label--active' :
+                    'label--pending'
+                  "
+                >{{ node.label }}</span>
+                <!-- Per-phase timestamp sits directly under each node label -->
+                <span
+                  v-if="node.timestamp"
+                  class="node-time"
+                  :class="node.state === 'done' ? 'node-time--done' : 'node-time--active'"
+                >{{ node.timestamp }}</span>
+              </div>
+              <div
+                v-if="i < item.pipeline.lines.length"
+                class="pipeline-line"
+                :class="item.pipeline.lines[i] === 'done' ? 'line--done' : 'line--pending'"
+              >
+                <div v-if="item.pipeline.lines[i] === 'active'" class="shimmer-line"></div>
+              </div>
+            </template>
+          </div>
 
           <div class="card-sohibul">
-            <span class="material-symbols-outlined" style="font-size:14px">person</span>
-            <span class="sohibul-name">{{ item.sohibul }}</span>
+            <div class="sohibul-left">
+              <span class="material-symbols-outlined sohibul-icon">person</span>
+              <span class="sohibul-name">{{ item.sohibul }}</span>
+            </div>
+            <!-- Overall card time now reflects the CURRENT active phase only -->
+            <span class="card-time" :class="item.status === 'BELUM' ? 'is-dim' : ''">{{ item.timeInfo }}</span>
           </div>
         </div>
       </template>
@@ -528,19 +525,9 @@ onUnmounted(() => {
         <span class="footer-op-label">Operator</span>
         <span class="footer-op-name">{{ operatorName }}</span>
       </div>
-      <div class="footer-right">
-        <div class="footer-counts">
-          <span class="count-active">{{ countProses }} proses</span>
-          <span class="count-sep">·</span>
-          <span class="count-selesai">{{ countSelesai }} selesai</span>
-          <span class="count-sep">·</span>
-          <span class="count-shown">{{ countBelum }} menunggu</span>
-        </div>
-        <button class="footer-back-btn" type="button" @click="goBack">
-          <span class="material-symbols-outlined" style="font-size:20px">chevron_left</span>
-          <span class="footer-back-label">KEMBALI</span>
-        </button>
-      </div>
+      <button class="footer-back-btn" type="button" @click="goBack">
+        <span class="footer-back-label">KEMBALI</span>
+      </button>
     </footer>
 
   </div>
@@ -548,8 +535,7 @@ onUnmounted(() => {
 
 <style>
 html, body {
-  height: 100%;
-  overflow: hidden;
+  margin: 0; padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
 .material-symbols-outlined {
@@ -563,226 +549,238 @@ html, body {
 
 <style scoped>
 .page-root {
-  --c-primary:           #003527;
-  --c-on-primary:        #ffffff;
-  --c-primary-fixed-dim: #95d3ba;
-  --c-primary-container: #064e3b;
-  --c-surface:           #f6fafe;
-  --c-surface-low:       #f0f4f8;
-  --c-surface-container: #eaeef2;
-  --c-surface-lowest:    #ffffff;
-  --c-surface-variant:   #dfe3e7;
-  --c-on-surface:        #171c1f;
-  --c-on-surface-var:    #404944;
-  --c-outline:           #707974;
-  --c-outline-var:       #bfc9c3;
-  --c-border:            #E2E8F0;
-  --c-secondary:         #006a61;
-  --c-on-secondary:      #ffffff;
-  --c-done:              #16A34A;
-  --c-pending:           #D97706;
-  --c-error:             #ba1a1a;
-  --c-error-container:   #ffdad6;
-  --c-on-error-container:#93000a;
-
   height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--c-surface);
-  color: var(--c-on-surface);
+  gap: 14px;
+  padding: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  background: #0A0E13;
+  color: #E6EDF3;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 /* Header */
 .pm-header {
-  position: sticky; top: 0; z-index: 50;
-  background: rgba(246,250,254,0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--c-border);
-  padding: 16px;
-  display: flex; flex-direction: column; gap: 12px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 29px;
 }
-.pm-header-row1 { display: flex; justify-content: space-between; align-items: center; }
 .pm-title {
-  font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
-  color: var(--c-primary); display: flex; align-items: center; gap: 8px; line-height: 1; margin: 0;
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 24px; font-weight: 900; line-height: 29px;
+  letter-spacing: -0.01em; color: #FFFFFF; white-space: nowrap;
 }
-.pm-live-dot-wrap { position: relative; display: inline-flex; height: 8px; width: 8px; }
-.pm-live-dot-ping { position: absolute; inset: 0; border-radius: 9999px; opacity: 0.75; }
-.pm-live-dot-ping.is-syncing { background: var(--c-done); animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; }
-.pm-live-dot-core { position: relative; display: inline-flex; border-radius: 9999px; height: 8px; width: 8px; }
-.pm-live-dot-core.is-syncing { background: var(--c-done); }
-.pm-live-dot-core.is-idle    { background: var(--c-outline-var); }
-
-.pm-op-chip {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--c-surface-container); border: 1px solid var(--c-outline-var);
-  border-radius: 8px; padding: 6px 10px;
-}
-.pm-op-name { font-size: 12px; font-weight: 700; color: var(--c-primary); }
+.pm-live-dot-wrap { position: relative; display: inline-flex; height: 10px; width: 10px; }
+.pm-live-dot-ping { position: absolute; inset: 0; border-radius: 9999px; opacity: 0; }
+.pm-live-dot-ping.is-syncing { background: #34D399; animation: ping 1.4s cubic-bezier(0,0,0.2,1) infinite; }
+.pm-live-dot-core { position: relative; display: inline-flex; border-radius: 9999px; height: 10px; width: 10px; }
+.pm-live-dot-core.is-syncing { background: #34D399; }
+.pm-live-dot-core.is-idle    { background: #5B6776; }
 
 .pm-search-bar {
-  background: var(--c-surface-low); border: 1px solid var(--c-border);
-  border-radius: 9999px; padding: 4px; display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  height: 47px; padding: 6px 6px 6px 16px;
+  border-radius: 24px; background: #11171E;
 }
 .pm-search-inner {
-  flex: 1; display: flex; align-items: center; padding: 0 12px;
-  gap: 8px; color: var(--c-on-surface-var); min-width: 0;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
 }
+.pm-search-icon { font-size: 18px; color: #7D8A99; }
 .pm-search-input {
-  width: 100%; background: transparent; border: none; outline: none;
-  font-size: 13px; color: var(--c-on-surface); font-family: inherit; padding: 4px 0;
+  flex: 1; min-width: 0; padding: 0;
+  background: transparent; border: none; outline: none;
+  font-family: 'Inter', sans-serif; font-size: 14px; color: #E6EDF3;
 }
-.pm-search-input::placeholder { color: var(--c-outline); }
+.pm-search-input::placeholder { color: #5B6776; }
 .pm-search-clear {
-  flex-shrink: 0; background: none; border: none; cursor: pointer;
-  color: var(--c-outline); display: flex; align-items: center; transition: color 0.15s;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; padding: 0; cursor: pointer; color: #7D8A99;
 }
-.pm-search-clear:hover { color: var(--c-on-surface); }
+.pm-search-clear-icon { font-size: 18px; }
 .pm-filter-btn {
-  border-radius: 9999px; padding: 4px 12px; font-size: 11px; font-weight: 600;
-  display: flex; align-items: center; gap: 4px; border: none; cursor: pointer;
-  flex-shrink: 0; background: var(--c-primary); color: var(--c-on-primary);
-  transition: background 0.15s; font-family: inherit;
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  height: 35px; padding: 0 14px;
+  border: none; border-radius: 9999px;
+  background: #271F45; color: #C4B5FD;
+  cursor: pointer; font-family: inherit;
 }
-.pm-filter-btn.is-active { background: var(--c-secondary); color: var(--c-on-secondary); }
+.pm-filter-btn.is-active { background: #271F45; color: #C4B5FD; }
+.pm-filter-icon { font-size: 15px; color: #C4B5FD; }
+.pm-filter-label {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 11px; font-weight: 800; line-height: 1;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+.pm-search-icon,
+.pm-filter-icon,
+.sohibul-icon,
+.node-icon {
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
 
 /* Sub-header */
 .pm-subheader {
-  background: var(--c-surface); padding: 8px 20px;
-  border-bottom: 1px solid var(--c-border); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 24px;
 }
-.pm-subheader-label { font-size: 12px; font-weight: 700; color: var(--c-on-surface-var); letter-spacing: 0.08em; text-transform: uppercase; }
-.pm-subheader-counts { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.pm-subheader-label {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #7D8A99;
+}
+.pm-subheader-counts { display: flex; align-items: center; gap: 6px; }
+.count-chip {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+  border-radius: 9999px; white-space: nowrap;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.count-chip--active { background: #33260C; color: #FCD34D; }
+.count-chip--shown  { background: #1B2530; color: #9AA7B5; }
 
 /* Main */
 .pm-main {
   flex: 1; min-height: 0; overflow-y: auto;
-  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px;
 }
 .pm-main::-webkit-scrollbar { display: none; }
 .pm-main { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Error */
 .pm-error-banner {
-  display: flex; align-items: flex-start; gap: 8px; padding: 12px 16px;
-  background: var(--c-error-container); border: 1px solid rgba(186,26,26,0.3); border-radius: 8px;
+  display: flex; align-items: flex-start; gap: 8px; padding: 12px;
+  background: #2A1218; border-radius: 18px;
 }
-.pm-error-icon  { color: var(--c-error); flex-shrink: 0; margin-top: 2px; }
-.pm-error-msg   { font-size: 12px; color: var(--c-on-error-container); flex: 1; line-height: 1.5; }
+.pm-error-icon  { font-size: 18px; color: #FDA4AF; flex-shrink: 0; margin-top: 2px; }
+.pm-error-msg   { font-size: 12px; font-weight: 600; color: #FDA4AF; flex: 1; line-height: 1.4; }
 .pm-error-retry {
-  font-size: 11px; font-weight: 700; color: var(--c-on-error-container);
-  border: 1px solid rgba(147,0,10,0.4); border-radius: 4px; padding: 4px 8px;
-  flex-shrink: 0; background: none; cursor: pointer; font-family: inherit;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: rgba(253,164,175,0.8);
+  border: none; padding: 0; flex-shrink: 0; background: none; cursor: pointer;
+  font-family: inherit;
 }
 
 /* Empty */
 .pm-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 0; gap: 12px; text-align: center; }
-.pm-empty-icon  { font-size: 48px; color: var(--c-outline-var); }
-.pm-empty-title { font-size: 13px; font-weight: 700; color: var(--c-outline); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
-.pm-empty-desc  { font-size: 12px; color: var(--c-outline); max-width: 220px; line-height: 1.5; margin: 0; }
+.pm-empty-icon  { font-size: 48px; color: #1B2530; }
+.pm-empty-title { font-family: 'Montserrat', 'Inter', sans-serif; font-size: 13px; font-weight: 800; color: #9AA7B5; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+.pm-empty-desc  { font-size: 12px; color: #7D8A99; max-width: 220px; line-height: 1.5; margin: 0; }
 
 /* Cards */
 .card {
-  background: var(--c-surface-lowest); border-radius: 12px; padding: 16px;
-  display: flex; flex-direction: column; gap: 16px; width: 100%;
-  transition: box-shadow 0.15s, transform 0.1s;
+  background: #11171E; border-radius: 24px; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px; width: 100%;
+  transition: transform 0.1s;
 }
-.card:active { transform: scale(0.98); }
-.card--default  { border: 1px solid var(--c-border); box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05); }
-.card--proses   { border: 1px solid #80bea6; box-shadow: 0 4px 15px rgba(22,163,74,0.08); }
-.card--skeleton { border: 1px solid var(--c-border); box-shadow: none; }
+.card:active { transform: scale(0.99); }
+.card--skeleton { background: #11171E; }
 
-.card-top { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; gap: 8px; }
-.card-id-col { display: flex; flex-direction: column; min-width: 0; }
-.card-id { font-size: 18px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--c-on-surface); }
-.card-id.is-dim { opacity: 0.5; }
-.card-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
-.card-jenis { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; background: var(--c-primary-container); color: var(--c-primary-fixed-dim); }
-.card-jenis.is-dim { background: var(--c-surface-variant); color: var(--c-on-surface-var); }
-.card-time { font-size: 11px; color: var(--c-on-surface-var); }
+.card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 33px; }
+.card-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.card-id-chip { display: inline-flex; align-items: center; padding: 8px; border-radius: 12px; background: #1B2530; flex-shrink: 0; }
+.card-id { font-family: 'Montserrat', 'Inter', sans-serif; font-size: 14px; font-weight: 900; line-height: 17px; color: #FFFFFF; white-space: nowrap; }
+.card-jenis {
+  font-family: 'Montserrat', 'Inter', sans-serif; font-size: 17px; font-weight: 800; line-height: 21px;
+  color: #FFFFFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-jenis.is-dim { color: #9AA7B5; }
+.card-time { flex-shrink: 0; font-size: 12px; font-weight: 700; color: #7D8A99; }
 .card-time.is-dim { opacity: 0.6; }
 
-.badge { font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 9999px; white-space: nowrap; flex-shrink: 0; }
-.badge--selesai { color: #16A34A; border: 1px solid rgba(22,163,74,0.2); background: #DCFCE7; }
-.badge--proses  { color: #D97706; border: 1px solid rgba(217,119,6,0.2); background: #FEF3C7; animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
-.badge--belum   { color: #EF4444; border: 1px solid rgba(239,68,68,0.2); background: #FEE2E2; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 10px 0 8px; border-radius: 9999px; flex-shrink: 0;
+  font-family: 'Montserrat', 'Inter', sans-serif; font-size: 10px; font-weight: 800;
+  line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
+}
+.badge--selesai { background: #0F2D25; color: #6EE7B7; padding: 0 8px; }
+.badge--proses  { background: #33260C; color: #FCD34D; }
+.badge--belum   { background: #2A1218; color: #FDA4AF; padding: 0 8px; }
+.badge-dot { width: 6px; height: 6px; border-radius: 9999px; background: #FCD34D; }
 
 /* Pipeline */
-.pipeline { display: flex; align-items: center; justify-content: space-between; padding: 0 8px; width: 100%; }
-.pipeline-node { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.node-circle { width: 32px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; }
-.node--done    { background: #16A34A; box-shadow: 0 2px 6px rgba(22,163,74,0.3); }
-.node--active  { border: 2px solid #D97706; background: white; }
-.node--pending { border: 2px solid var(--c-surface-variant); background: transparent; }
-.node-icon { font-size: 16px; color: white; }
-.node--active .node-icon  { color: #D97706; }
-.node--pending .node-icon { color: var(--c-on-surface-var); }
+.pipeline { display: flex; align-items: flex-start; width: 100%; }
+.pipeline-node { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 54px; flex-shrink: 0; }
+.node-circle { width: 36px; height: 36px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.node--done    { background: #34D399; }
+.node--active,
+.node--transit { background: #33260C; }
+.node--pending { background: #1B2530; }
+.node-icon { font-size: 16px; }
+.node--done .node-icon              { color: #052E22; }
+.node--active .node-icon,
+.node--transit .node-icon           { color: #FCD34D; }
 
-.node-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-.label--done    { color: var(--c-on-surface-var); }
-.label--active  { color: #D97706; }
-.label--pending { color: rgba(64,73,68,0.4); }
+.node-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; line-height: 11px; }
+.label--done    { color: #9AA7B5; }
+.label--active  { color: #FCD34D; }
+.label--pending { color: #5B6776; }
 
-.pipeline-line { flex: 1; height: 2px; margin: 0 4px; overflow: hidden; }
-.line--done    { background: #16A34A; }
-.line--pending { background: var(--c-surface-container); }
-.shimmer-line  { height: 100%; background: #D97706; width: 50%; animation: shimmer-progress 2s cubic-bezier(0.4,0,0.2,1) infinite; }
+.node-time { font-size: 10px; font-weight: 600; line-height: 12px; }
+.node-time--done   { color: #6EE7B7; }
+.node-time--active { color: #FCD34D; }
 
-.card-sohibul { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--c-border); font-size: 12px; color: var(--c-on-surface-var); width: 100%; }
-.sohibul-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-line { flex: 1; min-width: 0; height: 4px; margin-top: 16px; border-radius: 2px; overflow: hidden; }
+.line--done    { background: #34D399; }
+.line--pending { background: #1B2530; }
+.shimmer-line  { height: 100%; width: 50%; border-radius: 2px; background: #FCD34D; animation: shimmer-progress 2s cubic-bezier(0.4,0,0.2,1) infinite; }
+
+.card-sohibul { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.sohibul-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sohibul-icon { font-size: 12px; color: #7D8A99; flex-shrink: 0; }
+.sohibul-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #9AA7B5; }
 
 /* Skeleton */
 .skel-top      { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .skel-col      { display: flex; flex-direction: column; gap: 8px; }
-.skel-id       { height: 24px; width: 96px; border-radius: 4px; }
-.skel-sub      { height: 16px; width: 144px; border-radius: 4px; }
-.skel-badge    { height: 24px; width: 64px; border-radius: 9999px; }
-.skel-pipeline { display: flex; align-items: center; padding: 0 8px; }
-.skel-node     { width: 32px; height: 32px; border-radius: 9999px; flex-shrink: 0; }
-.skel-line     { flex: 1; height: 2px; margin: 0 4px; }
-.skel-footer   { padding-top: 12px; border-top: 1px solid var(--c-border); }
-.skel-sohibul  { height: 16px; width: 75%; border-radius: 4px; }
-.shimmer-bg { background: #eaeef2; position: relative; overflow: hidden; }
+.skel-id       { height: 33px; width: 96px; border-radius: 12px; }
+.skel-sub      { height: 16px; width: 144px; border-radius: 8px; }
+.skel-badge    { height: 28px; width: 77px; border-radius: 9999px; }
+.skel-pipeline { display: flex; align-items: flex-start; }
+.skel-node     { width: 36px; height: 36px; border-radius: 9999px; flex-shrink: 0; margin: 0 9px; }
+.skel-line     { flex: 1; height: 4px; margin-top: 16px; border-radius: 2px; }
+.skel-footer   { display: flex; }
+.skel-sohibul  { height: 16px; width: 75%; border-radius: 8px; }
+.shimmer-bg { background: #1B2530; position: relative; overflow: hidden; }
 .shimmer-bg::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.65) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.07) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer-sweep 1.4s infinite ease-in-out;
 }
 
 /* Footer */
-.pm-footer { background: var(--c-surface-lowest); border-top: 1px solid var(--c-border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-.footer-op       { display: flex; flex-direction: column; gap: 2px; }
-.footer-op-label { font-size: 10px; font-weight: 700; color: var(--c-outline); text-transform: uppercase; letter-spacing: 0.05em; }
-.footer-op-name  { font-size: 13px; font-weight: 700; color: var(--c-primary); }
-.footer-right    { display: flex; align-items: center; gap: 12px; }
-.footer-counts   { display: none; align-items: center; gap: 8px; font-size: 11px; }
-
-.count-active  { color: #D97706; font-weight: 600; }
-.count-selesai { color: #16A34A; font-weight: 600; }
-.count-sep     { color: var(--c-outline); }
-.count-shown   { color: var(--c-outline); font-weight: 600; }
+.pm-footer {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px; border-radius: 28px; background: #11171E;
+}
+.footer-op       { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.footer-op-label { font-size: 10px; font-weight: 700; color: #7D8A99; text-transform: uppercase; letter-spacing: 0.1em; }
+.footer-op-name  { font-family: 'Montserrat', 'Inter', sans-serif; font-size: 16px; font-weight: 800; line-height: 20px; color: #FFFFFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .footer-back-btn {
-  display: flex; align-items: center; gap: 4px; background: none; border: none;
-  cursor: pointer; padding: 6px 12px; border-radius: 8px; transition: background 0.15s, transform 0.1s;
-  color: var(--c-secondary); font-family: inherit;
+  flex-shrink: 0; display: flex; align-items: center; height: 41px; padding: 0 13px;
+  border: none; border-radius: 18px; background: #1B2530;
+  cursor: pointer; font-family: inherit; transition: background 0.15s, transform 0.08s;
 }
-.footer-back-btn:hover  { background: rgba(0,106,97,0.05); }
-.footer-back-btn:active { transform: scale(0.95); }
-.footer-back-label { font-size: 12px; font-weight: 700; color: var(--c-primary); }
+.footer-back-btn:hover  { background: #223040; }
+.footer-back-btn:active { transform: scale(0.98); }
+.footer-back-label { font-family: 'Montserrat', 'Inter', sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #FFFFFF; }
 
 /* Animations */
 .spin { animation: spin 1s linear infinite; }
 
 @keyframes ping            { 75%, 100% { transform: scale(2); opacity: 0; } }
-@keyframes pulse           { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @keyframes spin            { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes shimmer-sweep   { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @keyframes shimmer-progress{ 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
@@ -790,6 +788,4 @@ html, body {
 /* Transitions */
 .banner-fade-enter-active, .banner-fade-leave-active { transition: all 0.2s ease; }
 .banner-fade-enter-from, .banner-fade-leave-to       { opacity: 0; transform: translateY(-6px); }
-
-@media (min-width: 640px) { .footer-counts { display: flex; } }
 </style>

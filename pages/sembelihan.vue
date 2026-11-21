@@ -10,12 +10,13 @@ definePageMeta({ layout: 'lapangan' })
 useHead({
   title: 'Sembelihan Terminal',
   meta: [
-    { name: 'theme-color', content: '#f0f4f8' },
+    { name: 'theme-color', content: '#0A0E13' },
     { name: 'viewport', content: 'width=device-width, initial-scale=1.0' }
   ],
   link: [
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap' },
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' }
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap' }
   ]
 })
 
@@ -52,6 +53,16 @@ const isPageLoading = ref(true)
 const fetchError    = ref('')
 const grupList      = ref<GrupHewan[]>([])
 
+// ── Boot skeleton — held for at least 1s, even when the fetch is faster ──────
+// After the first load it never returns, so the 20s poll and re-syncs do not
+// flash the list back to placeholders.
+const SKELETON_MS = 1000
+const skeletonElapsed = ref(false)
+const hasBooted       = ref(false)
+let skeletonTimer: ReturnType<typeof setTimeout> | null = null
+
+const showSkeleton = computed(() => !skeletonElapsed.value || !hasBooted.value)
+
 async function loadGrupSembelihan() {
   isPageLoading.value = true
   fetchError.value = ''
@@ -66,6 +77,7 @@ async function loadGrupSembelihan() {
     fetchError.value = err instanceof Error ? err.message : 'Gagal memuat data.'
   } finally {
     isPageLoading.value = false
+    hasBooted.value = true
   }
 }
 
@@ -147,6 +159,7 @@ function formatTime(iso: string | null): string {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 // Fetch first, then connect — same ordering as pages/team/index.vue.
 onMounted(async () => {
+  skeletonTimer = setTimeout(() => { skeletonElapsed.value = true }, SKELETON_MS)
   loadOperatorFromStorage()
   await loadGrupSembelihan()
   connectRealtime()
@@ -156,6 +169,7 @@ onMounted(async () => {
   window.addEventListener('online', handleOnline)
 })
 onUnmounted(() => {
+  if (skeletonTimer !== null) clearTimeout(skeletonTimer)
   disconnectRealtime()
   if (pollTimer) clearInterval(pollTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -164,544 +178,402 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-root">
+  <div class="sbh-root">
+    <div class="mx-auto flex h-full w-full max-w-[430px] flex-col px-5 pt-5">
 
-    <!-- ── HEADER ──────────────────────────────────────────────────────────── -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <h2 class="topbar-title">SEMBELIHAN</h2>
-        <div class="live-dot-wrap" :class="{ 'live-dot-wrap--offline': !isSyncing }">
-          <span class="live-dot-ping"></span>
-          <span class="live-dot"></span>
-        </div>
-      </div>
-      <div class="operator-chip">
-        <span class="material-symbols-outlined chip-icon">badge</span>
-      <span class="chip-text">{{ operatorNameInput }}</span>
-      </div>
-    </header>
+      <!-- ── TOPBAR ──────────────────────────────────────────────────────── -->
+      <header class="flex h-[29px] shrink-0 items-center gap-2.5">
+        <h1 class="sbh-display text-[24px] font-black leading-none tracking-[-0.01em] text-white">
+          SEMBELIHAN
+        </h1>
+        <span class="relative flex h-2.5 w-2.5 items-center justify-center" :aria-label="isSyncing ? 'Live' : 'Offline'">
+          <span v-if="isSyncing" class="live-ping"></span>
+          <span class="live-dot" :class="{ 'live-dot--off': !isSyncing }"></span>
+        </span>
+      </header>
 
-    <!-- ── MAIN CANVAS ─────────────────────────────────────────────────────── -->
-    <main class="canvas">
+      <!-- ── SCROLLING CONTENT ───────────────────────────────────────────── -->
+      <main class="hide-scrollbar mt-3.5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2">
 
-      <!-- Actions & Stats -->
-      <div class="actions-block">
-        <!-- QR Scan button -->
-        <button class="qr-btn" @click="openQrScanner">
-          <span class="material-symbols-outlined" style="font-size:24px">qr_code_scanner</span>
-          <span class="qr-btn-label">BUKA KAMERA QR SCAN</span>
+        <!-- QR scan -->
+        <button type="button" class="qr-btn" @click="openQrScanner">
+          <span class="material-symbols-outlined text-[22px]">qr_code_scanner</span>
+          <span class="sbh-display text-[14px] font-extrabold uppercase leading-none">Buka Kamera QR Scan</span>
         </button>
-        
 
-        <!-- Stats row -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <span class="stat-label">Antrian</span>
-            <div class="stat-value stat-value--pending">{{ grupBelum.length }}</div>
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="stat-card bg-[#33260C]">
+            <span class="stat-label text-[#FCD34D]">Antrian</span>
+            <span class="stat-value">{{ grupBelum.length }}</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">Selesai</span>
-            <div class="stat-value stat-value--completed">{{ grupSelesai.length }}</div>
+          <div class="stat-card bg-[#0F2D25]">
+            <span class="stat-label text-[#6EE7B7]">Selesai</span>
+            <span class="stat-value">{{ grupSelesai.length }}</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">TOTAL</span>
-            <div class="stat-value stat-value--total">{{ grupEligible.length }}</div>
+          <div class="stat-card bg-[#1B2530]">
+            <span class="stat-label text-[#9AA7B5]">Total</span>
+            <span class="stat-value">{{ grupEligible.length }}</span>
           </div>
         </div>
-      </div>
 
-      <!-- Error banner -->
-      <Transition name="slide-down">
-        <div v-if="fetchError" class="error-banner">
-          <span class="material-symbols-outlined" style="font-size:18px;color:#ba1a1a">error</span>
-          <span class="error-text">{{ fetchError }}</span>
-          <button class="error-dismiss" @click="fetchError = ''">TUTUP</button>
-        </div>
-      </Transition>
-
-      <!-- Data section (ported from pengulitan.vue's "Emerald Governance" data UI) -->
-      <div class="data-section">
-
-        <!-- Section header -->
-        <div class="sbh-list-header">
-          <span class="sbh-list-title">Data Sembelihan</span>
-          <span class="sbh-list-status" :class="{ 'sbh-list-status--offline': !isSyncing }">
-            {{ isSyncing ? 'LIVE' : 'MENYAMBUNGKAN...' }}
-          </span>
-        </div>
+        <!-- Error -->
+        <Transition name="fade">
+          <div v-if="fetchError" class="flex items-start gap-2 rounded-[18px] bg-[#2A1218] p-3">
+            <span class="material-symbols-outlined mt-0.5 text-[18px] text-[#FDA4AF]">error</span>
+            <span class="min-w-0 flex-1 text-[12px] font-semibold leading-[1.4] text-[#FDA4AF]">{{ fetchError }}</span>
+            <button
+              type="button"
+              class="shrink-0 text-[10px] font-extrabold tracking-[0.06em] text-[#FDA4AF]/80 transition-colors hover:text-[#FDA4AF]"
+              @click="fetchError = ''"
+            >TUTUP</button>
+          </div>
+        </Transition>
 
         <!-- Skeleton -->
-        <div v-if="isPageLoading" class="sbh-skeleton-list">
-          <div v-for="n in 3" :key="n" class="sbh-skeleton-card">
-            <div class="sbh-skel-line sbh-skel-line--h" :style="{ width: (40 + n * 11) + '%' }"></div>
-            <div class="sbh-skel-line sbh-skel-line--s" :style="{ width: (55 + n * 5) + '%' }"></div>
+        <div v-if="showSkeleton" class="flex flex-col gap-3" aria-hidden="true">
+          <div
+            v-for="n in 3" :key="`skel-${n}`"
+            class="flex flex-col gap-2.5 rounded-[24px] bg-[#11171E] p-4"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="qc-skel h-[33px] w-[51px] rounded-xl bg-white/5"></span>
+                <span class="qc-skel h-[21px] w-[70px] rounded bg-white/5"></span>
+              </div>
+              <span class="qc-skel h-7 w-[86px] rounded-full bg-white/5"></span>
+            </div>
+            <span class="qc-skel h-4 w-[200px] rounded bg-white/5"></span>
+            <span class="qc-skel h-[15px] w-[140px] rounded bg-white/5"></span>
           </div>
         </div>
 
         <!-- Empty -->
-        <div v-else-if="grupEligible.length === 0" class="sbh-empty">
-          <span class="material-symbols-outlined sbh-empty-icon">inbox</span>
-          <span class="sbh-empty-title">BELUM ADA DATA</span>
-          <span class="sbh-empty-sub">Belum ada hewan dengan status Kedatangan = Diterima.</span>
+        <div
+          v-else-if="grupEligible.length === 0"
+          class="flex flex-col items-center justify-center gap-2 rounded-[24px] bg-[#11171E] px-6 py-12 text-center"
+        >
+          <span class="material-symbols-outlined text-[28px] text-[#3C4A59]">inbox</span>
+          <span class="sbh-display text-[13px] font-extrabold tracking-[0.06em] text-[#9AA7B5]">BELUM ADA DATA</span>
+          <span class="text-[12px] leading-[1.5] text-[#5B6776]">Belum ada hewan dengan status Kedatangan = Diterima.</span>
         </div>
 
         <template v-else>
 
-          <!-- ── ANTRIAN (Belum) ─────────────────────────────── -->
-          <div v-if="grupBelum.length > 0" class="sbh-section">
-            <div class="sbh-section-heading">
-              ANTRIAN
-              <span class="sbh-section-count">{{ grupBelum.length }}</span>
+          <!-- ── ANTRIAN ──────────────────────────────────────────────── -->
+          <section v-if="grupBelum.length > 0" class="flex flex-col gap-3">
+            <div class="flex h-[27px] items-center gap-2.5">
+              <span class="text-[12px] font-bold leading-[1.25] text-[#7D8A99]">ANTRIAN</span>
+              <span class="count-chip bg-[#33260C] text-[#FCD34D]">{{ grupBelum.length }}</span>
             </div>
 
-            <div
+            <article
               v-for="grup in grupBelum"
               :key="grup.id_grup"
-              class="sbh-card"
+              class="flex flex-col gap-2.5 rounded-[24px] bg-[#11171E] p-4"
             >
-              <div class="sbh-card-accent accent--belum"></div>
-              <div class="sbh-card-row">
-                <div class="sbh-card-identity">
-                  <span class="sbh-id-chip">{{ grup.id_grup }}</span>
-                  <span class="sbh-jenis">{{ grup.jenis_hewan ?? '—' }}</span>
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <span class="id-chip">{{ grup.id_grup }}</span>
+                  <span class="sbh-display truncate text-[17px] font-extrabold leading-[21px] text-white">
+                    {{ grup.jenis_hewan ?? '—' }}
+                  </span>
                 </div>
-                <div class="sbh-card-right">
-                  <span class="sbh-status-badge badge--belum">MENUNGGU</span>
-                  <span v-if="grup.sembelih_selesai_at" class="sbh-time-label">{{ formatTime(grup.sembelih_selesai_at) }}</span>
-                  <span v-if="grup.is_timer_active" class="sbh-timer-chip">
-                    <span class="material-symbols-outlined" style="font-size:11px">timer</span>
+
+                <div class="flex shrink-0 flex-col items-end gap-1.5">
+                  <span class="status-badge bg-[#33260C] text-[#FCD34D]">MENUNGGU</span>
+                  <span v-if="grup.is_timer_active" class="timer-chip">
+                    <span class="material-symbols-outlined text-[13px]">timer</span>
                     TIMER
                   </span>
                 </div>
               </div>
-              <p class="sbh-sohibul">Sohibul: {{ sohibulNames(grup) }}</p>
-              <p v-if="grup.label_tampilan" class="sbh-label-tampilan">{{ grup.label_tampilan }}</p>
-            </div>
-          </div>
 
-          <!-- ── SELESAI ─────────────────────────────────────── -->
-          <div v-if="grupSelesai.length > 0" class="sbh-section">
-            <div class="sbh-section-heading heading--done">
-              SELESAI
-              <span class="sbh-section-count">{{ grupSelesai.length }}</span>
+              <p class="text-[13px] leading-[16px] text-[#9AA7B5]">Sohibul: {{ sohibulNames(grup) }}</p>
+              <p v-if="grup.label_tampilan" class="text-[12px] font-bold leading-[15px] text-[#5B6776]">
+                {{ grup.label_tampilan }}
+              </p>
+            </article>
+          </section>
+
+          <!-- ── SELESAI ──────────────────────────────────────────────── -->
+          <section v-if="grupSelesai.length > 0" class="flex flex-col gap-3">
+            <div class="flex h-[27px] items-center gap-2.5">
+              <span class="text-[12px] font-bold leading-[1.25] text-[#7D8A99]">SELESAI</span>
+              <span class="count-chip bg-[#0F2D25] text-[#6EE7B7]">{{ grupSelesai.length }}</span>
             </div>
 
-            <div
+            <article
               v-for="grup in grupSelesai"
               :key="grup.id_grup"
-              class="sbh-card card--done"
+              class="flex flex-col gap-2.5 rounded-[24px] bg-[#11171E] p-4"
             >
-              <div class="sbh-card-accent accent--selesai"></div>
-              <div class="sbh-card-row">
-                <div class="sbh-card-identity">
-                  <span class="sbh-id-chip">{{ grup.id_grup }}</span>
-                  <span class="sbh-jenis">{{ grup.jenis_hewan ?? '—' }}</span>
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <span class="id-chip">{{ grup.id_grup }}</span>
+                  <span class="sbh-display truncate text-[17px] font-extrabold leading-[21px] text-white">
+                    {{ grup.jenis_hewan ?? '—' }}
+                  </span>
                 </div>
-                <span class="sbh-status-badge badge--selesai">SELESAI</span>
+                <span class="status-badge shrink-0 bg-[#0F2D25] text-[#6EE7B7]">SELESAI</span>
               </div>
-              <p class="sbh-sohibul">Sohibul: {{ sohibulNames(grup) }}</p>
-              <p class="sbh-ts">Selesai: {{ formatTime(grup.sembelih_selesai_at) }}</p>
-            </div>
-          </div>
+
+              <p class="text-[13px] leading-[16px] text-[#9AA7B5]">Sohibul: {{ sohibulNames(grup) }}</p>
+              <p class="text-[12px] font-bold leading-[15px] text-[#5B6776]">
+                Selesai: {{ formatTime(grup.sembelih_selesai_at) }}
+              </p>
+            </article>
+          </section>
 
         </template>
-      </div>
-    </main>
+      </main>
 
-    <!-- ── FOOTER ──────────────────────────────────────────────────────────── -->
-    <footer class="page-footer">
-      <div class="footer-operator">
-        <span class="footer-label">Operator</span>
-        <span class="footer-name">{{ operatorNameInput || 'Petugas' }}</span>
-      </div>
-      <button class="flex items-center gap-1 text-secondary hover:bg-secondary/5 px-3 py-1.5 rounded-lg transition-colors active:scale-95" @click="Index">
-        <span class="material-symbols-outlined text-[10px] footer-name">chevron_left</span>
-        <span class="footer-name">KEMBALI</span>
-      </button>
-    </footer>
+      <!-- ── FOOTER ──────────────────────────────────────────────────────── -->
+      <footer class="mt-3.5 flex h-[69px] shrink-0 items-center justify-between gap-3 rounded-[28px] bg-[#11171E] px-3.5">
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <span class="text-[10px] font-bold uppercase leading-[12px] text-[#7D8A99]">Operator</span>
+          <span class="sbh-display truncate text-[16px] font-extrabold leading-[20px] text-white">
+            {{ operatorNameInput || 'Petugas' }}
+          </span>
+        </div>
+        <button type="button" class="back-btn" @click="Index">
+          <span class="sbh-display text-[12px] font-extrabold leading-none text-white">KEMBALI</span>
+        </button>
+      </footer>
 
+    </div>
   </div>
 </template>
 
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  height: 100%;
-  overflow: hidden;
-  background: #f0f4f8;
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  color: #171c1f;
-  -webkit-font-smoothing: antialiased;
-}
-
+/* ── Material Symbols ────────────────────────────────────────────────────────── */
 .material-symbols-outlined {
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
   display: inline-flex;
   align-items: center;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   user-select: none;
 }
 
-@keyframes ping {
+@keyframes qc-ping {
   75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+/* ── Scrollbar hide ─────────────────────────────────────────────────────────── */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+body {
+  overscroll-behavior-y: none;
+  background-color: #0A0E13;
+  color: #E6EDF3;
+  margin: 0;
+  padding: 0;
 }
 </style>
 
 <style scoped>
-/* ── Page shell ──────────────────────────────────────────────────────────── */
-.page-root {
-  height: 100dvh;
-  overflow: hidden;
+/* ══════════════════════════════════════════════════════════════════════════════
+   ROOT
+   ══════════════════════════════════════════════════════════════════════════════ */
+.sbh-root {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  background: #f0f4f8;
-  color: #171c1f;
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  overflow: hidden;
+  background-color: #0A0E13;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #E6EDF3;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
-/* ── Topbar ──────────────────────────────────────────────────────────────── */
-.topbar {
-  background: #ffffff;
-  border-bottom: 1px solid #E2E8F0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
-  flex-shrink: 0;
-  z-index: 40;
+.sbh-display {
+  font-family: 'Montserrat', 'Inter', sans-serif;
 }
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.topbar-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #003527;
-  letter-spacing: -0.01em;
-  line-height: 28px;
-}
-.live-dot-wrap {
-  position: relative;
-  width: 8px;
-  height: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.live-dot-ping {
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIVE DOT
+   ══════════════════════════════════════════════════════════════════════════════ */
+.live-ping {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: #16A34A;
-  opacity: 0.75;
-  animation: ping 1.4s cubic-bezier(0,0,0.2,1) infinite;
+  background: #34D399;
+  opacity: 0.7;
+  animation: qc-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 .live-dot {
   position: relative;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 9999px;
-  background: #16A34A;
-  display: inline-block;
+  background: #34D399;
 }
-.live-dot-wrap--offline .live-dot-ping { animation: none; opacity: 0; }
-.live-dot-wrap--offline .live-dot { background: #bfc9c3; }
+.live-dot--off { background: #5B6776; }
 
-/* Operator chip */
-.operator-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  background: #eaeef2;
-  border: 1px solid #bfc9c3;
-  border-radius: 0.5rem;
-}
-.chip-icon {
-  font-size: 16px !important;
-  color: #707974;
-}
-.chip-input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  color: #003527;
-  letter-spacing: -0.01em;
-  width: 120px;
-}
-.chip-input::placeholder { color: #707974; }
-
-/* ── Main canvas ─────────────────────────────────────────────────────────── */
-.canvas {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 24px;
-  max-width: 1440px;
-  width: 100%;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* ── Actions block ───────────────────────────────────────────────────────── */
-.actions-block {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* QR button */
+/* ══════════════════════════════════════════════════════════════════════════════
+   QR BUTTON
+   ══════════════════════════════════════════════════════════════════════════════ */
 .qr-btn {
-  width: 100%;
-  height: 56px;
-  background: #003527;
-  color: #ffffff;
-  border: none;
-  border-radius: 0.5rem;
   display: flex;
+  width: 100%;
+  height: 58px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   gap: 12px;
+  border: none;
+  border-radius: 24px;
+  background: #34D399;
+  color: #052E22;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,53,39,0.25);
-  transition: transform 0.08s, box-shadow 0.12s;
+  transition: transform 0.1s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.qr-btn:active { transform: scale(0.98); box-shadow: 0 2px 6px rgba(0,53,39,0.2); }
-.qr-btn-label {
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 28px;
-}
+.qr-btn:hover  { background: #3EE0A5; }
+.qr-btn:active { transform: scale(0.99); }
 
-/* Stats */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
+/* ══════════════════════════════════════════════════════════════════════════════
+   STATS
+   ══════════════════════════════════════════════════════════════════════════════ */
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.25rem;
-  padding: 12px;
   display: flex;
+  height: 95px;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.stat-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #707974;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 32px;
-  letter-spacing: -0.01em;
-}
-.stat-value--pending   { color: #F59E0B; }
-.stat-value--completed { color: #16A34A; }
-.stat-value--total     { color: #006a61; }
-
-/* ── Error banner ────────────────────────────────────────────────────────── */
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #ffdad6;
-  border: 1px solid #ba1a1a;
-  border-radius: 0.25rem;
-}
-.error-text  { font-size: 13px; color: #ba1a1a; flex: 1; font-weight: 500; }
-.error-dismiss {
-  font-size: 11px; font-weight: 700; color: #ba1a1a;
-  background: transparent; border: 1px solid #ba1a1a;
-  padding: 3px 10px; border-radius: 0.25rem; cursor: pointer;
-  font-family: 'Inter', sans-serif;
-}
-.slide-down-enter-active, .slide-down-leave-active { transition: all 0.2s ease; }
-.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-6px); }
-
-/* ── Data section — "Emerald Governance" style ported from pengulitan.vue ── */
-.data-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.sbh-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 4px;
-}
-.sbh-list-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #707974;
-}
-.sbh-list-status {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #16A34A;
-}
-.sbh-list-status--offline { color: #707974; }
-
-/* ── Skeleton ────────────────────────────────────────────────────────────── */
-.sbh-skeleton-list { display: flex; flex-direction: column; gap: 10px; }
-.sbh-skeleton-card {
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.5rem;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.sbh-skel-line {
-  background: linear-gradient(90deg, #eaeef2 25%, #f0f4f8 50%, #eaeef2 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-  border-radius: 0.25rem;
-}
-.sbh-skel-line--h { height: 16px; }
-.sbh-skel-line--s { height: 10px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-/* ── Empty ───────────────────────────────────────────────────────────────── */
-.sbh-empty {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 60px 20px; gap: 10px; text-align: center;
-}
-.sbh-empty-icon { font-size: 40px !important; color: #bfc9c3; }
-.sbh-empty-title { font-size: 13px; font-weight: 700; color: #707974; letter-spacing: 0.08em; text-transform: uppercase; }
-.sbh-empty-sub { font-size: 12px; color: #707974; line-height: 1.5; max-width: 260px; }
-
-/* ── Section ─────────────────────────────────────────────────────────────── */
-.sbh-section { display: flex; flex-direction: column; gap: 8px; }
-.sbh-section-heading {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 700; color: #707974;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  padding-bottom: 4px; border-bottom: 1px solid #E2E8F0;
-}
-.heading--done { opacity: 0.7; }
-.sbh-section-count { margin-left: auto; font-size: 11px; font-weight: 600; color: #707974; }
-
-/* ── Card ────────────────────────────────────────────────────────────────── */
-.sbh-card {
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  border-radius: 0.5rem;
-  padding: 14px 14px 14px 18px;
-  position: relative;
+  gap: 6px;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 24px;
+  padding: 14px;
 }
-.sbh-card-accent { position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
-.accent--belum   { background: #F59E0B; }
-.accent--selesai { background: #16A34A; }
 
-.card--done { opacity: 0.85; }
+.stat-label {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
-.sbh-card-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.sbh-card-identity { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-
-.sbh-id-chip {
-  background: rgba(0,53,39,0.05);
-  border: 1px solid rgba(0,53,39,0.1);
-  color: #003527;
-  padding: 2px 8px;
-  border-radius: 0.25rem;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: 'Inter', sans-serif;
+.stat-value {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: clamp(34px, 10.5vw, 40px);
+  font-weight: 900;
+  line-height: 1.22;
   letter-spacing: -0.01em;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #FFFFFF;
 }
-.sbh-jenis { font-size: 14px; font-weight: 700; color: #171c1f; }
 
-.sbh-card-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.sbh-status-badge {
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.badge--belum   { background: rgba(245,158,11,0.12); color: #F59E0B; }
-.badge--selesai { background: rgba(22,163,74,0.12);  color: #16A34A; }
-
-.sbh-time-label { font-size: 12px; color: #707974; white-space: nowrap; }
-.sbh-timer-chip {
+.count-chip {
   display: inline-flex;
+  height: 27px;
   align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #F59E0B;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  padding: 2px 8px;
   border-radius: 9999px;
+  padding: 0 7px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
 }
 
-.sbh-sohibul { font-size: 13px; line-height: 18px; color: #404944; margin: 0; }
-.sbh-label-tampilan { font-size: 11px; color: #707974; margin: 0; letter-spacing: 0.03em; }
-.sbh-ts { font-size: 11px; font-family: 'Inter', sans-serif; color: #707974; margin: 4px 0 0; }
-
-/* ── Footer ──────────────────────────────────────────────────────────────── */
-.page-footer {
-  background: #ffffff;
-  border-top: 1px solid #E2E8F0;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ══════════════════════════════════════════════════════════════════════════════
+   CARDS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.id-chip {
+  display: inline-flex;
+  height: 33px;
   flex-shrink: 0;
+  align-items: center;
+  border-radius: 12px;
+  background: #1B2530;
+  padding: 0 8px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 17px;
+  color: #FFFFFF;
 }
-.footer-operator { display: flex; flex-direction: column; gap: 2px; }
-.footer-label {
+
+.status-badge {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0 8px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
   font-size: 10px;
-  font-weight: 700;
-  color: #707974;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 800;
+  line-height: 1;
 }
-.footer-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #003527;
+
+.timer-chip {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 9999px;
+  background: #271F45;
+  padding: 0 7px;
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  color: #C4B5FD;
 }
-.footer-version { font-size: 10px; color: #707974; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   FOOTER
+   ══════════════════════════════════════════════════════════════════════════════ */
+.back-btn {
+  display: flex;
+  height: 41px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 20px;
+  background: #1B2530;
+  padding: 0 13px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+  -webkit-tap-highlight-color: transparent;
+}
+.back-btn:hover  { background: #223040; }
+.back-btn:active { transform: scale(0.98); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TRANSITIONS + SKELETON
+   ══════════════════════════════════════════════════════════════════════════════ */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.qc-skel { position: relative; overflow: hidden; }
+.qc-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  animation: qc-skel-sweep 1s ease-in-out infinite;
+}
+@keyframes qc-skel-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qc-skel::after { animation: none; }
+}
 </style>

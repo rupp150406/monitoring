@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// ./pages/admin.vue
-import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
+// ./pages/admin.vue — Qurban Command Center (design: FigCraft "Operasional Qurban 1446 H")
+import { ref, reactive, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
 import * as XLSX from 'xlsx';
+import logoAhsan from '~/assets/images/ahsan.webp';
 import { useQurbanRealtime, useActivityLog, use12ValueScore } from '@/composables/useQurbanEngine';
 import type { GrupHewan, Database, ActivityLog } from '@/composables/useQurbanEngine';
 
@@ -9,40 +10,110 @@ import type { GrupHewan, Database, ActivityLog } from '@/composables/useQurbanEn
 definePageMeta({ middleware: 'admin-auth' });
 
 useHead({
-  title: 'Qurban Admin | Dashboard',
+  title: 'Qurban Command Center | Ahsantv',
+  htmlAttrs: { style: 'height: 100% !important; overflow: hidden !important;' },
+  bodyAttrs: {
+    style: 'height: 100% !important; overflow: hidden !important; background-color: #0A0E13 !important; margin: 0 !important; padding: 0 !important;',
+  },
   meta: [
-    { name: 'theme-color', content: '#003527' },
+    { name: 'theme-color', content: '#0A0E13' },
     { name: 'viewport', content: 'width=device-width, initial-scale=1' },
   ],
   link: [
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
-    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css' },
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=connected_tv' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap' },
+    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css' },
   ],
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Fase = 'kedatangan' | 'sembelihan' | 'pengulitan' | 'pengemasan';
+type PhaseKey      = 'kedatangan' | 'sembelihan' | 'pengulitan' | 'pengemasan';
+type StatusField   = 'status_kedatangan' | 'status_sembelihan' | 'status_pengulitan' | 'status_pengemasan';
+type StatusTone    = 'belum' | 'proses' | 'selesai' | 'diterima';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const supabase      = useSupabaseClient<Database>();
 const ROWS_PER_PAGE = 10;
 const AUTO_INTERVAL = 6;
 
-const STATUS_COLUMNS = [
-  { field: 'status_kedatangan', label: 'KEDATANGAN',  options: ['Belum', 'Diterima'] },
-  { field: 'status_sembelihan', label: 'SEMBELIHAN',  options: ['Belum', 'Selesai']  },
-  { field: 'status_pengulitan', label: 'PENGULITAN',  options: ['Belum', 'Proses', 'Selesai'] },
-  { field: 'status_pengemasan', label: 'DISTRIBUSI',  options: ['Belum', 'Proses', 'Selesai'] },
+const STATUS_COLUMNS: Array<{ field: StatusField; phase: PhaseKey; label: string; options: string[] }> = [
+  { field: 'status_kedatangan', phase: 'kedatangan', label: 'KEDATANGAN', options: ['Belum', 'Diterima'] },
+  { field: 'status_sembelihan', phase: 'sembelihan', label: 'SEMBELIHAN', options: ['Belum', 'Selesai']  },
+  { field: 'status_pengulitan', phase: 'pengulitan', label: 'PENGULITAN', options: ['Belum', 'Proses', 'Selesai'] },
+  { field: 'status_pengemasan', phase: 'pengemasan', label: 'DISTRIBUSI', options: ['Belum', 'Proses', 'Selesai'] },
 ];
 
-const JENIS_OPTIONS: string[] = ['Sapi', 'Kambing', 'Domba'];
+const PHASE_FIELDS: Record<PhaseKey, StatusField> = {
+  kedatangan: 'status_kedatangan',
+  sembelihan: 'status_sembelihan',
+  pengulitan: 'status_pengulitan',
+  pengemasan: 'status_pengemasan',
+};
 
-const FASE_MAP: Record<string, Fase> = {
+// Reverse lookup — status column name → process key (used when writing the audit log)
+const FASE_MAP: Record<string, PhaseKey> = {
   status_kedatangan: 'kedatangan',
   status_sembelihan: 'sembelihan',
   status_pengulitan: 'pengulitan',
   status_pengemasan: 'pengemasan',
 };
+
+// Design palette per process
+const PHASE_META: Record<PhaseKey, { title: string; short: string; color: string }> = {
+  kedatangan: { title: 'KEDATANGAN', short: 'Kedatangan', color: '#93C5FD' },
+  sembelihan: { title: 'SEMBELIHAN', short: 'Sembelihan', color: '#6EE7B7' },
+  pengulitan: { title: 'PENGULITAN', short: 'Pengulitan', color: '#FCD34D' },
+  pengemasan: { title: 'DISTRIBUSI',  short: 'Distribusi', color: '#C4B5FD' },
+};
+
+// Status pill / dropdown tone — one tone per status value
+const STATUS_STYLE: Record<StatusTone, { bg: string; text: string; dot: string; hollow: boolean }> = {
+  belum:    { bg: '#171E28', text: '#8B98A7', dot: '#4E5A68', hollow: true  },
+  proses:   { bg: '#2B2008', text: '#FCD34D', dot: '#FBBF24', hollow: false },
+  selesai:  { bg: '#0F2A22', text: '#6EE7B7', dot: '#34D399', hollow: false },
+  diterima: { bg: '#0F2A22', text: '#6EE7B7', dot: '#34D399', hollow: false },
+};
+
+const JENIS_OPTIONS: string[] = ['Sapi', 'Kambing', 'Domba'];
+
+// Top deck cards — exact colours from the design file
+const DECK = [
+  { key: 'kedatangan' as PhaseKey, label: '01 · KEDATANGAN', card: '#10253C', accent: '#93C5FD', bar: '#60A5FA', track: '#1B3B5E' },
+  { key: 'sembelihan' as PhaseKey, label: '02 · SEMBELIHAN', card: '#0F2D25', accent: '#6EE7B7', bar: '#34D399', track: '#15463A' },
+  { key: 'pengulitan' as PhaseKey, label: '03 · PENGULITAN', card: '#33260C', accent: '#FCD34D', bar: '#FBBF24', track: '#4F3A12' },
+  { key: 'pengemasan' as PhaseKey, label: '04 · DISTRIBUSI', card: '#271F45', accent: '#C4B5FD', bar: '#A78BFA', track: '#3B2F6B' },
+] as const;
+
+// Phase colour used by the audit log headline
+const FASE_COLOR: Record<string, string> = {
+  kedatangan: '#93C5FD',
+  sembelihan: '#6EE7B7',
+  pengulitan: '#FBBF24',
+  pengemasan: '#C4B5FD',
+};
+
+const SCROLLBAR_TABLE =
+  '[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#1E2A38] [&::-webkit-scrollbar-thumb:hover]:bg-[#2B3B4C]';
+
+const SCROLLBAR_FEED =
+  '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#1E2A38] [&::-webkit-scrollbar-thumb:hover]:bg-[#2B3B4C]';
+
+const RIPPLE_CLASS =
+  'pointer-events-none absolute rounded-full bg-white/20 animate-[qc-ripple_0.35s_ease-out_forwards]';
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+const toastMsg     = ref('');
+const toastVisible = ref(false);
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(msg: string): void {
+  toastMsg.value     = msg;
+  toastVisible.value = true;
+  if (_toastTimer !== null) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { toastVisible.value = false; }, 2400);
+}
 
 // ─── Activity Log ─────────────────────────────────────────────────────────────
 const {
@@ -53,6 +124,7 @@ const {
 
 const alfLogs      = computed<readonly ActivityLog[]>(() => liveLogs.value);
 const alfIsLoading = computed<boolean>(() => isLoadingHistory.value);
+const entryCount   = computed<number>(() => alfLogs.value.length);
 
 const isPaused = ref(false);
 const feedEl   = ref<HTMLElement | null>(null);
@@ -78,24 +150,6 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function statusColor(status: string): string {
-  if (status === 'Selesai' || status === 'Diterima') return 'log-status-selesai';
-  if (status === 'Proses') return 'log-status-proses';
-  return 'log-status-belum';
-}
-
-function sourceLabel(src: string): string {
-  if (src === 'qr_scan')    return 'PWA';
-  if (src === 'auto_timer') return 'AUTO';
-  return 'ADMIN';
-}
-
-function sourceClass(src: string): string {
-  if (src === 'qr_scan')    return 'badge-pwa';
-  if (src === 'auto_timer') return 'badge-auto';
-  return 'badge-admin';
-}
-
 function faseLabel(fase: string): string {
   const map: Record<string, string> = {
     kedatangan: 'KEDATANGAN', sembelihan: 'SEMBELIHAN',
@@ -104,16 +158,33 @@ function faseLabel(fase: string): string {
   return map[fase] ?? fase.toUpperCase();
 }
 
-function faseClass(fase: string): string {
-  const map: Record<string, string> = {
-    kedatangan: 'fase-kedatangan', sembelihan: 'fase-sembelihan',
-    pengulitan: 'fase-pengulitan', pengemasan: 'fase-distribusi',
-  };
-  return map[fase] ?? 'fase-default';
+function faseColor(fase: string): string {
+  return FASE_COLOR[fase] ?? '#6EE7B7';
 }
 
-const entryCount    = computed<number>(() => alfLogs.value.length);
-const isAtCapacity  = computed<boolean>(() => alfLogs.value.length >= 100);
+function statusTone(status: string): StatusTone {
+  const s = (status ?? '').toLowerCase();
+  if (s === 'selesai') return 'selesai';
+  if (s === 'diterima') return 'diterima';
+  if (s === 'proses') return 'proses';
+  return 'belum';
+}
+
+function statusTextColor(status: string): string {
+  return STATUS_STYLE[statusTone(status)].text;
+}
+
+function pillStyle(status: string) {
+  const t = STATUS_STYLE[statusTone(status)];
+  return { background: t.bg, color: t.text };
+}
+
+function dotStyle(status: string) {
+  const t = STATUS_STYLE[statusTone(status)];
+  return t.hollow
+    ? { background: 'transparent', boxShadow: `inset 0 0 0 2px ${t.dot}` }
+    : { background: t.dot };
+}
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const tableKey = ref(0);
@@ -126,6 +197,17 @@ const { data: dataGrup, refresh } = await useAsyncData('admin_grup_hewan', async
   if (error) { console.error('[Admin] Initial fetch error:', error); return [] as GrupHewan[]; }
   return (data ?? []) as GrupHewan[];
 });
+
+// ─── Boot skeleton — shown for at least 1s, even when the fetch is faster ────
+const SKELETON_MS = 1000;
+const SKELETON_ROWS = 15; // table rows drawn while loading
+const SKELETON_LOGS = 15; // audit entries drawn while loading
+const skeletonElapsed = ref(false);
+let _skeletonTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Still loading while the minimum window is open OR the first dataset
+// has not arrived yet — whichever finishes last wins.
+const showSkeleton = computed<boolean>(() => !skeletonElapsed.value || dataGrup.value === null);
 
 const scoreInput = computed<GrupHewan[]>(() => dataGrup.value ?? []);
 const { globalPercentage, phaseMetrics, totalScore, maxTotalScore } = use12ValueScore(scoreInput);
@@ -144,8 +226,8 @@ function detectDevice(): void {
 }
 
 // ─── TV Page sync ─────────────────────────────────────────────────────────────
-const activePage  = ref(1);
-const countdown   = ref(AUTO_INTERVAL);
+const activePage = ref(1);
+const countdown  = ref(AUTO_INTERVAL);
 let masterTimer: ReturnType<typeof setInterval> | null = null;
 
 const pageSyncChannel = supabase.channel('page-sync-channel');
@@ -199,10 +281,18 @@ function toggleHideGroup(idGrup: string): void {
   broadcastHiddenGroups();
 }
 
+function onToggleHide(idGrup: string): void {
+  toggleHideGroup(idGrup);
+  showToast(isGroupHidden(idGrup)
+    ? `${idGrup} disembunyikan dari TV monitor.`
+    : `${idGrup} ditampilkan kembali di TV monitor.`);
+}
+
 function clearAllHidden(): void {
   hiddenGroupIds.value = [];
   _writeLocalStorage('qurban_hidden_group_ids', JSON.stringify([]));
   broadcastHiddenGroups();
+  showToast('Semua kelompok qurban kembali ditampilkan.');
 }
 
 function isGroupHidden(idGrup: string): boolean {
@@ -210,9 +300,6 @@ function isGroupHidden(idGrup: string): boolean {
 }
 
 // ─── TV pagination (chunked by grup, ROWS_PER_PAGE = 10) ─────────────────────
-// Mirrors index.vue exactly: 1 grup = 1 TV row. 21 grups → 3 pages.
-// totalPages drives the eg-page-btn count rendered in the control bar.
-// The admin table itself shows all filteredRows untruncated (scrollable).
 const chunkedGrup = computed<GrupHewan[][]>(() => {
   const visible = (dataGrup.value ?? []).filter(
     (g) => !hiddenGroupIds.value.includes(String(g.id_grup ?? ''))
@@ -243,6 +330,11 @@ function setActivePage(p: number): void {
   }
 }
 
+function onPageClick(p: number): void {
+  setActivePage(p);
+  showToast(`Menampilkan TV Layar Halaman ${activePage.value}`);
+}
+
 function startMasterInterval(): void {
   if (isMobileDevice.value) return;
   if (masterTimer !== null) return;
@@ -266,14 +358,17 @@ function restartMasterInterval(): void {
 
 // ─── Search & filter ──────────────────────────────────────────────────────────
 const searchQuery = ref('');
-const filterState = ref<{
-  jenisHewan: string[]; kedatangan: string[]; sembelihan: string[];
-  pengulitan: string[]; pengemasan: string[];
-}>({ jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: [], pengemasan: [] });
+
+// Status seeds are keyed per process: AND across processes, OR inside one.
+const filterStatus = reactive<Record<PhaseKey, string[]>>({
+  kedatangan: [], sembelihan: [], pengulitan: [], pengemasan: [],
+});
+const filterJenis = ref<string[]>([]);
 
 const filteredRows = computed<GrupHewan[]>(() => {
   if (!dataGrup.value) return [];
   let rows: GrupHewan[] = dataGrup.value;
+
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
     rows = rows.filter((r) =>
@@ -283,65 +378,222 @@ const filteredRows = computed<GrupHewan[]>(() => {
       r.sohibul_qurban?.some((s: { nama?: string }) => s.nama?.toLowerCase().includes(q))
     );
   }
-  if (filterState.value.jenisHewan.length) rows = rows.filter((r) => filterState.value.jenisHewan.includes(r.jenis_hewan ?? ''));
-  if (filterState.value.kedatangan.length) rows = rows.filter((r) => filterState.value.kedatangan.includes(r.status_kedatangan ?? 'Belum'));
-  if (filterState.value.sembelihan.length) rows = rows.filter((r) => filterState.value.sembelihan.includes(r.status_sembelihan ?? 'Belum'));
-  if (filterState.value.pengulitan.length) rows = rows.filter((r) => filterState.value.pengulitan.includes(r.status_pengulitan ?? 'Belum'));
-  if (filterState.value.pengemasan.length) rows = rows.filter((r) => filterState.value.pengemasan.includes(r.status_pengemasan ?? 'Belum'));
+
+  if (filterJenis.value.length) {
+    rows = rows.filter((r) => filterJenis.value.includes(r.jenis_hewan ?? ''));
+  }
+
+  for (const phase of Object.keys(PHASE_FIELDS) as PhaseKey[]) {
+    const selected = filterStatus[phase];
+    if (!selected.length) continue;
+    const field = PHASE_FIELDS[phase];
+    rows = rows.filter((r) => selected.includes(statusOf(r, field)));
+  }
+
   return rows;
 });
 
 const filteredCount = computed<number>(() => filteredRows.value.length);
 
-function resetFilters(): void {
-  filterState.value = { jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: [], pengemasan: [] };
-  searchQuery.value = '';
-}
+const hasActiveStatusFilter = computed<boolean>(
+  () => (Object.keys(PHASE_FIELDS) as PhaseKey[]).some((p) => filterStatus[p].length > 0)
+);
 
-function applyQuickFilter(type: 'all' | 'belum' | 'proses' | 'selesai'): void {
-  switch (type) {
-    case 'all':    resetFilters(); break;
-    case 'belum':  filterState.value = { jenisHewan: [], kedatangan: ['Belum'], sembelihan: ['Belum'], pengulitan: ['Belum'], pengemasan: ['Belum'] }; break;
-    case 'proses': filterState.value = { jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: ['Proses'], pengemasan: ['Proses'] }; break;
-    case 'selesai':filterState.value = { jenisHewan: [], kedatangan: ['Diterima'], sembelihan: ['Selesai'], pengulitan: ['Selesai'], pengemasan: ['Selesai'] }; break;
+const filterSummary = computed<string>(() => {
+  const parts: string[] = [];
+  for (const phase of Object.keys(PHASE_FIELDS) as PhaseKey[]) {
+    const sel = filterStatus[phase];
+    if (sel.length) parts.push(`${PHASE_META[phase].short} · ${sel.join(' / ')}`);
   }
-}
+  if (filterJenis.value.length) parts.push(filterJenis.value.join(' / '));
+  return parts.length ? parts.join(' · ') : 'Semua proses';
+});
 
-function toggleFilter(category: keyof typeof filterState.value, value: string): void {
-  const arr = filterState.value[category];
+const filterOpen = ref(false);
+
+function toggleStatusFilter(field: StatusField, value: string): void {
+  const phase = (Object.keys(PHASE_FIELDS) as PhaseKey[]).find((p) => PHASE_FIELDS[p] === field);
+  if (!phase) return;
+  const arr = filterStatus[phase];
   const idx = arr.indexOf(value);
   if (idx !== -1) arr.splice(idx, 1); else arr.push(value);
 }
 
-// ─── Phase stats ──────────────────────────────────────────────────────────────
+function toggleJenis(value: string): void {
+  const idx = filterJenis.value.indexOf(value);
+  if (idx !== -1) filterJenis.value.splice(idx, 1); else filterJenis.value.push(value);
+}
+
+function resetStatusFilters(): void {
+  for (const p of Object.keys(PHASE_FIELDS) as PhaseKey[]) filterStatus[p].splice(0);
+  filterJenis.value = [];
+}
+
+function resetFilters(): void {
+  resetStatusFilters();
+  searchQuery.value = '';
+}
+
+function onResetFilters(): void {
+  resetFilters();
+  filterOpen.value = false;
+  showToast('Filter dikembalikan ke default');
+}
+
+// ─── Phase stats (top deck) ───────────────────────────────────────────────────
 const stats = computed(() => {
-  const m = phaseMetrics.value;
-  if (!m) return [];
-  return [
-    { label: 'KEDATANGAN', icon: 'fas fa-truck-ramp-box', ...m.kedatangan },
-    { label: 'SEMBELIHAN', icon: 'fas fa-scissors',         ...m.sembelihan },
-    { label: 'PENGULITAN', icon: 'fas fa-inbox',       ...m.pengulitan },
-    { label: 'DISTRIBUSI', icon: 'fas fa-box-open',       ...m.pengemasan },
-  ];
+  const m = phaseMetrics.value as Record<string, { belum: number; proses: number; selesai: number }> | null;
+  return DECK.map((p) => {
+    const d     = m?.[p.key] ?? { belum: 0, proses: 0, selesai: 0 };
+    const total = d.belum + d.proses + d.selesai;
+    return {
+      ...p,
+      belum: d.belum, proses: d.proses, selesai: d.selesai, total,
+      pct: total ? Math.round((d.selesai / total) * 100) : 0,
+      doneLabel: p.key === 'kedatangan' ? 'Diterima' : 'Selesai',
+      hasProses: (STATUS_COLUMNS.find((c) => c.phase === p.key)?.options ?? []).includes('Proses'),
+    };
+  });
 });
 
-//<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1;">cut</span>
+// Breakdown rows shown inside an expanded phase card
+function detailRows(
+  _key: string,
+  stat: { doneLabel: string; hasProses: boolean; selesai: number; proses: number; belum: number; bar: string },
+): Array<{ label: string; value: number; dot: string | null }> {
+  const rows: Array<{ label: string; value: number; dot: string | null }> = [
+    { label: stat.doneLabel, value: stat.selesai, dot: stat.bar },
+  ];
+  if (stat.hasProses) rows.push({ label: 'Proses', value: stat.proses, dot: '#FBBF24' });
+  rows.push({ label: 'Belum', value: stat.belum, dot: null });
+  return rows;
+}
+
+// Accordion state per card key — includes 'master'
+const ALL_DECK_KEYS = [...DECK.map((p) => p.key), 'master'];
+const openAcc = reactive<Record<string, boolean>>({});
+function toggleAcc(key: string): void {
+  const targetState = !openAcc[key];
+  for (const k of ALL_DECK_KEYS) openAcc[k] = targetState;
+}
+
+// Height/opacity animation for the deck's expandable detail block.
+// Written as JS hooks so the panel animates to its real content height
+// (no max-height guesswork) and the grid row reflows smoothly.
+const EXPAND_MS = 320;
+const COLLAPSE_MS = 260;
+
+function expandEnter(el: Element): void {
+  const node = el as HTMLElement;
+  // Mid-flight reversal: continue from the height it currently has
+  // instead of snapping back to 0 (fresh inserts start at 0).
+  const startHeight = node.style.height !== '' ? Math.max(0, node.getBoundingClientRect().height) : 0;
+
+  node.style.overflow = 'hidden';
+  node.style.height = `${startHeight}px`;
+  node.style.opacity = '0';
+  node.style.transform = 'translateY(-4px)';
+  node.style.willChange = 'height, opacity, transform';
+  void node.offsetHeight; // commit the start values before transitioning
+  node.style.transition =
+    `height ${EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1), ` +
+    `opacity 260ms ease, transform ${EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+  node.style.height = `${node.scrollHeight}px`;
+  node.style.opacity = '1';
+  node.style.transform = 'translateY(0)';
+}
+
+function expandAfterEnter(el: Element): void {
+  const node = el as HTMLElement;
+  node.style.transition = '';
+  node.style.height = '';
+  node.style.opacity = '';
+  node.style.transform = '';
+  node.style.overflow = '';
+  node.style.willChange = '';
+}
+
+function expandLeave(el: Element, done: () => void): void {
+  const node = el as HTMLElement;
+  let finished = false;
+  const finish = (): void => {
+    if (finished) return;
+    finished = true;
+    done();
+  };
+
+  node.style.height = `${node.getBoundingClientRect().height || node.scrollHeight}px`;
+  node.style.opacity = '1';
+  node.style.overflow = 'hidden';
+  node.style.willChange = 'height, opacity, transform';
+  void node.offsetHeight;
+  node.style.transition =
+    `height ${COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1), ` +
+    `opacity 180ms ease, transform 220ms ease`;
+  node.style.height = '0px';
+  node.style.opacity = '0';
+  node.style.transform = 'translateY(-4px)';
+
+  node.addEventListener('transitionend', (ev) => {
+    if ((ev as TransitionEvent).propertyName === 'height') finish();
+  });
+  // Safety net: never leave the card stuck mid-collapse.
+  window.setTimeout(finish, COLLAPSE_MS + 120);
+}
+
+function expandAfterLeave(el: Element): void {
+  const node = el as HTMLElement;
+  node.style.transition = '';
+  node.style.height = '';
+  node.style.opacity = '';
+  node.style.transform = '';
+  node.style.overflow = '';
+  node.style.willChange = '';
+}
+
 // ─── Status mutation ──────────────────────────────────────────────────────────
 const isMutatingId = ref('');
 
-function handleStatusClick(event: MouseEvent, idGrup: string, kolom: string, statusBaru: string): void {
-  const btn    = event.currentTarget as HTMLElement;
+// Floating status menu (design: "UBAH STATUS")
+const statusMenu = ref<{
+  idGrup: string; field: StatusField; options: string[]; current: string; x: number; y: number;
+} | null>(null);
+
+function openStatusMenu(
+  event: MouseEvent,
+  idGrup: string,
+  field: StatusField,
+  options: string[],
+  current: string,
+): void {
+  const btn = event.currentTarget as HTMLElement;
   const ripple = document.createElement('span');
-  ripple.classList.add('btn-ripple');
+  ripple.className = RIPPLE_CLASS;
   const rect = btn.getBoundingClientRect();
   const size = Math.max(rect.width, rect.height);
   ripple.style.width  = `${size}px`;
   ripple.style.height = `${size}px`;
   ripple.style.left   = `${event.clientX - rect.left - size / 2}px`;
-  ripple.style.top    = `${event.clientY - rect.top  - size / 2}px`;
+  ripple.style.top    = `${event.clientY - rect.top - size / 2}px`;
   btn.appendChild(ripple);
   ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
-  updateStatus(idGrup, kolom, statusBaru);
+
+  const w = 158;
+  const h = 21 + options.length * 34 + 12 + 8;
+  const x = Math.min(Math.max(8, rect.left), window.innerWidth - w - 8);
+  const below = rect.bottom + 8 + h < window.innerHeight;
+  const y = below ? rect.bottom + 8 : Math.max(8, rect.top - h - 8);
+  statusMenu.value = { idGrup, field, options, current, x, y };
+}
+
+function closeStatusMenu(): void { statusMenu.value = null; }
+
+async function chooseStatus(option: string): Promise<void> {
+  const menu = statusMenu.value;
+  if (!menu) return;
+  statusMenu.value = null;
+  if (option === menu.current) return;
+  await updateStatus(menu.idGrup, menu.field, option);
 }
 
 async function updateStatus(idGrup: string, kolom: string, statusBaru: string): Promise<void> {
@@ -363,7 +615,7 @@ async function updateStatus(idGrup: string, kolom: string, statusBaru: string): 
   try {
     const { error } = await supabase
       .from('grup_hewan')
-      .update({ [kolom]: statusBaru, updated_by: 'Admin Dashboard' }) 
+      .update({ [kolom]: statusBaru, updated_by: 'Admin Dashboard' })
       .eq('id_grup', idGrup);
 
     if (error) {
@@ -386,6 +638,7 @@ async function updateStatus(idGrup: string, kolom: string, statusBaru: string): 
 
     await refresh();
     tableKey.value++;
+    showToast(`Updated ${idGrup} → ${statusBaru}`);
   } catch (err) {
     console.error('[Admin] updateStatus unexpected error:', err);
     (row as unknown as Record<string, unknown>)[kolom] = statusLama;
@@ -447,18 +700,31 @@ function exportToExcel(): void {
   XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`);
 }
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-function statusPillClass(val: string | null | undefined): string {
-  if (val === 'Selesai' || val === 'Diterima') return 'pill-selesai';
-  if (val === 'Proses') return 'pill-proses';
-  return 'pill-belum';
+function handleExport(): void {
+  exportToExcel();
+  showToast('Export data Excel siap diunduh.');
 }
 
-function animalIcon(jenis: string | null | undefined): string {
-  const j = (jenis ?? '').toLowerCase();
-  if (j === 'sapi')              return 'fas fa-cow';
-  if (j === 'kambing' || j === 'domba') return 'fas fa-horse-head';
-  return 'fas fa-paw';
+function handleSyncMonitor(): void {
+  triggerRemoteReload();
+  showToast('Perintah sinkronisasi ke TV Monitor dikirim.');
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function statusOf(row: GrupHewan, field: string): string {
+  return ((row as unknown as Record<string, unknown>)[field] as string | null | undefined) ?? 'Belum';
+}
+
+function porsiLabel(grup: GrupHewan): string {
+  const n = grup.sohibul_qurban?.length ?? 0;
+  return `${n} sohibul`;
+}
+
+function sohibulNames(grup: GrupHewan): string {
+  const names = (grup.sohibul_qurban ?? [])
+    .map((s) => s.nama)
+    .filter((n): n is string => Boolean(n));
+  return names.length ? names.join(', ') : '—';
 }
 
 function rowScore(grup: GrupHewan): number {
@@ -471,16 +737,44 @@ function rowScore(grup: GrupHewan): number {
   );
 }
 
-function rowScoreBarWidth(score: number): string {
-  return `${Math.round((score / 12) * 100)}%`;
+function rowPct(grup: GrupHewan): number {
+  return Math.round((rowScore(grup) / 12) * 100);
+}
+
+function avgPerGroup(): string {
+  const groups = dataGrup.value?.length ?? 0;
+  if (!groups) return '0,0';
+  return (totalScore.value / groups).toFixed(1).replace('.', ',');
+}
+
+// ─── Outside click / Escape ───────────────────────────────────────────────────
+function onDocumentClick(ev: MouseEvent): void {
+  const target = ev.target as HTMLElement | null;
+  if (!target) return;
+  if (!target.closest('[data-qc="filter-panel"]') && !target.closest('[data-qc="filter-trigger"]')) {
+    filterOpen.value = false;
+  }
+  if (!target.closest('[data-qc="status-menu"]') && !target.closest('[data-qc="status-pill"]')) {
+    statusMenu.value = null;
+  }
+}
+
+function onKeydown(ev: KeyboardEvent): void {
+  if (ev.key !== 'Escape') return;
+  filterOpen.value = false;
+  statusMenu.value = null;
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(() => {
+  _skeletonTimer = setTimeout(() => { skeletonElapsed.value = true; }, SKELETON_MS);
   detectDevice();
   loadHiddenGroupsFromStorage();
   connectRealtime();
   loadRecentHistory().then(() => { subscribeLogs(); });
+
+  document.addEventListener('click', onDocumentClick);
+  document.addEventListener('keydown', onKeydown);
 
   pageSyncChannel
     .on('broadcast', { event: 'PAGE_CHANGED' }, (msg) => {
@@ -510,864 +804,668 @@ onUnmounted(() => {
   disconnectRealtime();
   unsubscribeLogs();
   supabase.removeChannel(pageSyncChannel);
+  document.removeEventListener('click', onDocumentClick);
+  document.removeEventListener('keydown', onKeydown);
+  if (_toastTimer !== null) clearTimeout(_toastTimer);
+  if (_userScrollTimeout !== null) clearTimeout(_userScrollTimeout);
+  if (_skeletonTimer !== null) clearTimeout(_skeletonTimer);
 });
 </script>
 
 <template>
-  <div class="eg-root">
-
-    <!-- ── HEADER ── -->
-    <header class="eg-header">
-      <div class="eg-header-brand">
-        <div class="eg-header-icon"><i class="fas fa-mosque"></i></div>
-        <div class="eg-header-title-group">
-          <h1 class="eg-header-title">Qurban Admin</h1>
-          <span class="eg-header-subtitle">Dashboard Manajemen Hewan Qurban</span>
+  <div
+    class="qc-root relative flex h-screen max-h-screen w-full flex-col gap-4 overflow-hidden bg-[#0A0E13] p-6 text-[#E6EDF3] antialiased [font-family:'Inter',system-ui,sans-serif] max-lg:h-auto max-lg:min-h-screen max-lg:max-h-none max-lg:overflow-y-auto max-md:p-4"
+  >
+    <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+    <header class="flex h-[52px] shrink-0 items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <img
+          :src="logoAhsan"
+          alt="Ahsan TV"
+          width="12"
+          height="12"
+          decoding="async"
+          draggable="false"
+          class="h-[102px] w-[102px] shrink-0 select-none object-contain"
+        />
+        <div class="flex flex-col gap-0.5">
+          <h1 class="qc-display text-[28px] leading-none font-black tracking-[-0.01em] text-[#E6EDF3]">
+            Operasional Qurban 1446 H
+          </h1>
+          <p class="text-[13px] font-semibold text-[#9AA7B5]">Ahsantv · Manajemen terpadu &amp; audit log</p>
         </div>
-        <span v-if="isSyncing" class="eg-sync-badge eg-sync-live">
-          <span class="eg-sync-dot"></span>Realtime
-        </span>
-        <span v-else class="eg-sync-badge eg-sync-offline">
-          <span class="eg-sync-dot"></span>Offline
-        </span>
       </div>
-      <div class="eg-header-right">
-        <span class="eg-device-tag">{{ isMobileDevice ? 'Mobile' : 'Desktop' }}</span>
-        <div class="eg-global-score-wrap">
-          <span class="eg-global-score-label">Progres Global</span>
-          <div class="eg-global-bar-track">
-            <div class="eg-global-bar-fill" :style="{ width: globalPercentage + '%' }"></div>
-          </div>
-          <span class="eg-global-score-pct">{{ globalPercentage }}%</span>
-        </div>
+
+      <div class="flex items-center gap-2">
+        <span class="flex h-[34px] items-center gap-2 rounded-[12px] bg-[#11171E] px-3 text-[12px] font-semibold text-[#8B98A7]">
+          <span
+            class="h-1.5 w-1.5 rounded-full"
+            :style="{ background: isSyncing ? '#34D399' : '#F87171', boxShadow: isSyncing ? '0 0 8px rgba(52,211,153,0.6)' : 'none' }"
+          ></span>
+          {{ isSyncing ? 'Tersinkron' : 'Offline' }}
+        </span>
       </div>
     </header>
 
-    <!-- ── PHASE DECK ── -->
-    <section class="eg-phase-deck">
-      <div v-for="(stat, idx) in stats" :key="stat.label" class="eg-phase-card">
-        <div class="eg-phase-card-header">
-          <div class="eg-phase-icon"><i :class="stat.icon"></i></div>
-          <div class="eg-phase-info">
-            <span class="eg-phase-label">{{ stat.label }}</span>
-            <span class="eg-phase-fraction">{{ stat.selesai }} / {{ (stat.belum + stat.proses + stat.selesai) || 0 }} selesai</span>
-          </div>
-        </div>
-        <div class="eg-phase-chips">
-          <span class="eg-phase-chip chip-belum">B: {{ stat.belum }}</span>
-          <span v-if="stat.proses > 0" class="eg-phase-chip chip-proses">P: {{ stat.proses }}</span>
-          <span class="eg-phase-chip chip-selesai">S: {{ stat.selesai }}</span>
-        </div>
-        <div class="eg-phase-bar-track">
-          <div class="eg-phase-bar-fill"
-            :style="{ width: Math.round((stat.selesai / ((stat.belum + stat.proses + stat.selesai) || 1)) * 100) + '%',
-                      transitionDelay: (idx * 0.15) + 's' }">
-          </div>
-        </div>
-      </div>
-
-      <!-- Global score card -->
-      <div class="eg-global-card">
-        <span class="eg-global-card-label">Global Score</span>
-        <span class="eg-global-card-pct">{{ globalPercentage }}<span class="eg-global-card-pct-unit">%</span></span>
-        <span class="eg-global-card-sub">{{ totalScore }} / {{ maxTotalScore }} pts</span>
-        <div class="eg-global-card-bar-track">
-          <div class="eg-global-card-bar-fill" :style="{ width: globalPercentage + '%' }"></div>
-        </div>
+    <!-- ── PROGRESS DECK ──────────────────────────────────────────────────── -->
+    <!-- loading: the whole deck is replaced by five neutral skeleton cards -->
+    <section
+      v-if="showSkeleton"
+      aria-hidden="true"
+      class="grid shrink-0 grid-cols-5 gap-3.5 max-2xl:grid-cols-3 max-md:grid-cols-1"
+    >
+      <div
+        v-for="n in 5" :key="`skel-card-${n}`"
+        class="flex flex-col gap-2.5 rounded-3xl bg-[#11171E] p-5"
+      >
+        <span class="qc-skel h-[18px] w-[92px] rounded bg-white/10"></span>
+        <span class="qc-skel -mt-1 h-[51px] w-[132px] rounded-xl bg-white/10"></span>
+        <span class="qc-skel h-3.5 w-full rounded-full bg-white/10"></span>
+        <span class="qc-skel h-[21px] w-[96px] rounded-md bg-white/10"></span>
       </div>
     </section>
 
-    <!-- ── CONTROL BAR ── -->
-    <div class="eg-control-bar">
-      <!-- TV page buttons -->
-      <div class="eg-ctrl-group">
-        <i class="fas fa-tv eg-ctrl-icon"></i>
-        <span class="eg-ctrl-label">TV Hal:</span>
-        <button
-          v-for="p in totalPages" :key="p"
-          class="eg-page-btn"
-          :class="p === activePage ? 'eg-page-btn--active' : ''"
-          @click="setActivePage(p)"
-        >{{ p }}</button>
-      </div>
+    <section v-else class="grid shrink-0 grid-cols-5 gap-3.5 max-2xl:grid-cols-3 max-md:grid-cols-1">
+      <div
+        v-for="stat in stats" :key="stat.key"
+        role="button"
+        tabindex="0"
+        class="relative flex cursor-pointer select-none flex-col gap-2.5 rounded-3xl p-5 outline-none transition-shadow duration-200 hover:ring-1 hover:ring-white/10 focus-visible:ring-2 focus-visible:ring-[#93C5FD]/60"
+        :style="{ background: stat.card }"
+        :aria-expanded="openAcc[stat.key] ? 'true' : 'false'"
+        :aria-label="`${openAcc[stat.key] ? 'Sembunyikan' : 'Tampilkan'} detail ${stat.label}`"
+        @click="toggleAcc(stat.key)"
+        @keydown.enter.prevent="toggleAcc(stat.key)"
+        @keydown.space.prevent="toggleAcc(stat.key)"
+      >
+        <span class="qc-display pr-10 text-[12px] font-extrabold tracking-[0.06em]" :style="{ color: stat.accent }">
+          {{ stat.label }}
+        </span>
 
-      <!-- Auto-countdown (desktop only) -->
-      <div v-if="!isMobileDevice" class="eg-ctrl-group">
-        <i class="fas fa-clock eg-ctrl-icon"></i>
-        <span class="eg-ctrl-label">Auto: {{ countdown }}s</span>
-        <div class="eg-countdown-track">
-          <div class="eg-countdown-fill" :style="{ width: ((AUTO_INTERVAL - countdown) / AUTO_INTERVAL * 100) + '%' }"></div>
+        <div class="qc-display -mt-1 text-[54px] leading-[0.95] font-black tracking-[-0.02em] text-[#E6EDF3]">
+          {{ stat.pct }}%
         </div>
+
+        <div class="h-3.5 w-full overflow-hidden rounded-full" :style="{ background: stat.track }">
+          <div
+            class="h-full rounded-full transition-[width] duration-500 ease-out"
+            :style="{ width: stat.pct + '%', background: stat.bar }"
+          ></div>
+        </div>
+
+        <div class="text-[14px] font-bold text-[#7D8A99]">{{ stat.selesai }} / {{ stat.total }} grup</div>
+
+        <!-- expand toggle (whole card is clickable; button kept for keyboard) -->
+        <button
+          type="button"
+          class="absolute top-3.5 right-5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full transition-transform duration-200"
+          :style="{ background: stat.accent }"
+          :aria-expanded="openAcc[stat.key] ? 'true' : 'false'"
+          :aria-label="`Detail ${stat.label}`"
+          @click.stop="toggleAcc(stat.key)"
+        >
+          <svg
+            width="10" height="6" viewBox="0 0 10 6" fill="none"
+            stroke="#0A0E13" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            :class="openAcc[stat.key] ? 'rotate-180 transition-transform duration-200' : 'transition-transform duration-200'"
+          >
+            <path d="M1 1l4 4 4-4" />
+          </svg>
+        </button>
+
+        <!-- breakdown -->
+        <Transition
+          @enter="expandEnter"
+          @after-enter="expandAfterEnter"
+          @leave="expandLeave"
+          @after-leave="expandAfterLeave"
+        >
+          <div v-if="openAcc[stat.key]" class="overflow-hidden">
+            <div class="mt-1 flex flex-col gap-2.5 rounded-2xl bg-black/35 p-3.5">
+              <div v-for="row in detailRows(stat.key, stat)" :key="row.label" class="flex items-center gap-2">
+                <span
+                  class="h-2.5 w-2.5 shrink-0 rounded-full"
+                  :style="row.dot ? { background: row.dot } : { boxShadow: 'inset 0 0 0 2px #6B7889' }"
+                ></span>
+                <span class="flex-1 text-[13px] font-bold text-[#AEBBCB]">{{ row.label }}</span>
+                <span class="qc-display text-[18px] font-black text-[#E6EDF3]">{{ row.value }}</span>
+                <span class="text-[12px] font-bold text-[#7D8A99]">grup</span>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
 
-      <div class="eg-ctrl-divider"></div>
+      <!-- TOTAL card -->
+      <div
+        role="button"
+        tabindex="0"
+        class="relative flex cursor-pointer select-none flex-col gap-2.5 rounded-3xl bg-[#34D399] p-5 outline-none transition-shadow duration-200 hover:ring-1 hover:ring-white/30 focus-visible:ring-2 focus-visible:ring-[#052E22]/60"
+        :aria-expanded="openAcc['master'] ? 'true' : 'false'"
+        :aria-label="`${openAcc['master'] ? 'Sembunyikan' : 'Tampilkan'} detail total eksekusi`"
+        @click="toggleAcc('master')"
+        @keydown.enter.prevent="toggleAcc('master')"
+        @keydown.space.prevent="toggleAcc('master')"
+      >
+        <span class="qc-display pr-10 text-[12px] font-extrabold tracking-[0.06em] text-[#052E22]">TOTAL EKSEKUSI</span>
 
-      <!-- Search -->
-      <div class="eg-search-wrap">
-        <i class="fas fa-magnifying-glass eg-search-icon"></i>
+        <div class="qc-display -mt-1 text-[54px] leading-[0.95] font-black tracking-[-0.02em] text-[#052E22]">
+          {{ globalPercentage }}%
+        </div>
+
+        <div class="h-3.5 w-full overflow-hidden rounded-full bg-[#1FA878]">
+          <div
+            class="h-full rounded-full bg-[#052E22] transition-[width] duration-500 ease-out"
+            :style="{ width: globalPercentage + '%' }"
+          ></div>
+        </div>
+
+        <div class="text-[14px] font-bold text-[#064E3B]">{{ totalScore }} / {{ maxTotalScore }} poin</div>
+
+        <button
+          type="button"
+          class="absolute top-3.5 right-5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-[#052E22]"
+          :aria-expanded="openAcc['master'] ? 'true' : 'false'"
+          aria-label="Detail total eksekusi"
+          @click.stop="toggleAcc('master')"
+        >
+          <svg
+            width="10" height="6" viewBox="0 0 10 6" fill="none"
+            stroke="#34D399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            :class="openAcc['master'] ? 'rotate-180 transition-transform duration-200' : 'transition-transform duration-200'"
+          >
+            <path d="M1 1l4 4 4-4" />
+          </svg>
+        </button>
+
+        <Transition
+          @enter="expandEnter"
+          @after-enter="expandAfterEnter"
+          @leave="expandLeave"
+          @after-leave="expandAfterLeave"
+        >
+          <div v-if="openAcc['master']" class="overflow-hidden">
+            <div class="mt-1 flex flex-col gap-2.5 rounded-2xl bg-black/15 p-3.5">
+              <div class="flex items-center gap-2">
+                <span class="flex-1 text-[13px] font-bold text-[#05483a]">Terkumpul</span>
+                <span class="qc-display text-[18px] font-black text-[#052E22]">{{ totalScore }}</span>
+                <span class="text-[12px] font-bold text-[#067a5c]">poin</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="flex-1 text-[13px] font-bold text-[#05483a]">Sisa</span>
+                <span class="qc-display text-[18px] font-black text-[#052E22]">{{ Math.max(0, maxTotalScore - totalScore) }}</span>
+                <span class="text-[12px] font-bold text-[#067a5c]">poin</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="flex-1 text-[13px] font-bold text-[#05483a]">Rata-rata</span>
+                <span class="qc-display text-[18px] font-black text-[#052E22]">{{ avgPerGroup() }}</span>
+                <span class="text-[12px] font-bold text-[#067a5c]">/ grup</span>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </section>
+
+    <!-- ── TOOLBAR ────────────────────────────────────────────────────────── -->
+    <div class="relative z-20 flex h-12 shrink-0 items-center gap-2.5 max-lg:h-auto max-lg:flex-wrap">
+      <!-- search -->
+      <label class="flex h-[43px] w-[300px] shrink-0 items-center gap-2 rounded-[14px] bg-[#11171E] px-3 max-md:w-full">
+        <i class="fas fa-magnifying-glass text-[12px] text-[#5B6776]"></i>
         <input
-          v-model="searchQuery" type="text"
-          placeholder="Cari ID, Jenis, Label, atau Nama Sohibul..."
-          class="eg-search-input"
+          v-model="searchQuery"
+          type="text"
+          placeholder="Cari ID grup, shohibul, label…"
+          class="w-full bg-transparent text-[14px] text-[#E6EDF3] outline-none placeholder:text-[#5B6776]"
         />
-      </div>
+      </label>
 
-      <!-- Quick filters -->
-      <div class="eg-quick-filters">
+      <!-- per-process status filter -->
+      <div class="relative shrink-0">
         <button
-          v-for="q in [{ k: 'all', l: 'Semua' }, { k: 'belum', l: 'Belum' }, { k: 'proses', l: 'Proses' }, { k: 'selesai', l: 'Selesai' }]"
-          :key="q.k" class="eg-quick-chip"
-          @click="applyQuickFilter(q.k as any)"
-        >{{ q.l }}</button>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="eg-ctrl-actions">
-        <button class="eg-btn-secondary" @click="exportToExcel">
-          <i class="fas fa-file-excel"></i>Export XLSX
+          data-qc="filter-trigger"
+          class="flex h-[39px] w-[322px] cursor-pointer items-center gap-2 rounded-[14px] bg-[#11171E] px-3 text-left transition-colors hover:bg-[#151D26] max-md:w-full"
+          :aria-expanded="filterOpen ? 'true' : 'false'"
+          @click="filterOpen = !filterOpen"
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#8B98A7" stroke-width="1.4" class="shrink-0">
+            <path d="M.7 1h11.6L8 6v6l-3 1.6V6L.7 1Z" />
+          </svg>
+          <span class="shrink-0 text-[13px] font-extrabold text-[#E6EDF3]">Status per proses</span>
+          <span class="h-3.5 w-px shrink-0 bg-[#263340]"></span>
+          <span
+            class="flex-1 truncate text-[12px] font-bold"
+            :style="{ color: hasActiveStatusFilter ? '#34D399' : '#8B98A7' }"
+            :title="filterSummary"
+          >{{ filterSummary }}</span>
+          <svg
+            width="8" height="5" viewBox="0 0 8 5" fill="none" stroke="#8B98A7" stroke-width="1.4"
+            class="shrink-0 transition-transform duration-150" :class="filterOpen ? 'rotate-180' : ''"
+          >
+            <path d="M.5.5 4 4l3.5-3.5" />
+          </svg>
         </button>
-        <button class="eg-btn-ghost" @click="resetFilters">
-          <i class="fas fa-filter-circle-xmark"></i>Reset Filter
-        </button>
-        <button class="eg-btn-ghost" @click="triggerRemoteReload">
-          <i class="fas fa-rotate"></i>Reload Monitor
-        </button>
-      </div>
-    </div>
 
-    <!-- ── FILTER PANEL ── -->
-    <div class="eg-filter-panel">
-      <div class="eg-filter-group">
-        <span class="eg-filter-label">Jenis:</span>
-        <label
-          v-for="j in JENIS_OPTIONS" :key="j"
-          class="eg-filter-chip"
-          :class="filterState.jenisHewan.includes(j) ? 'eg-filter-chip--active' : ''"
+        <!-- grouped filter panel -->
+        <div
+          v-if="filterOpen"
+          data-qc="filter-panel"
+          class="absolute top-[47px] left-0 z-50 w-[484px] rounded-[18px] bg-[#0D141B] p-[18px] shadow-[0_24px_60px_rgba(0,0,0,0.6)] max-md:w-[calc(100vw-2rem)]"
         >
-          <input type="checkbox" :checked="filterState.jenisHewan.includes(j)" class="eg-filter-checkbox" @change="toggleFilter('jenisHewan', j)" />
-          {{ j }}
-        </label>
-      </div>
-      <div class="eg-filter-group">
-        <span class="eg-filter-label">Kedatangan:</span>
-        <label
-          v-for="o in ['Belum', 'Diterima']" :key="o"
-          class="eg-filter-chip"
-          :class="filterState.kedatangan.includes(o) ? 'eg-filter-chip--active' : ''"
-        >
-          <input type="checkbox" :checked="filterState.kedatangan.includes(o)" class="eg-filter-checkbox" @change="toggleFilter('kedatangan', o)" />
-          {{ o }}
-        </label>
-      </div>
-      <div class="eg-filter-group">
-        <span class="eg-filter-label">Sembelihan:</span>
-        <label
-          v-for="o in ['Belum', 'Selesai']" :key="o"
-          class="eg-filter-chip"
-          :class="filterState.sembelihan.includes(o) ? 'eg-filter-chip--active' : ''"
-        >
-          <input type="checkbox" :checked="filterState.sembelihan.includes(o)" class="eg-filter-checkbox" @change="toggleFilter('sembelihan', o)" />
-          {{ o }}
-        </label>
-      </div>
-      <div class="eg-filter-group">
-        <span class="eg-filter-label">Pengulitan:</span>
-        <label
-          v-for="o in ['Belum', 'Proses', 'Selesai']" :key="o"
-          class="eg-filter-chip"
-          :class="filterState.pengulitan.includes(o) ? 'eg-filter-chip--active' : ''"
-        >
-          <input type="checkbox" :checked="filterState.pengulitan.includes(o)" class="eg-filter-checkbox" @change="toggleFilter('pengulitan', o)" />
-          {{ o }}
-        </label>
-      </div>
-      <div class="eg-filter-group">
-        <span class="eg-filter-label">Distribusi:</span>
-        <label
-          v-for="o in ['Belum', 'Proses', 'Selesai']" :key="o"
-          class="eg-filter-chip"
-          :class="filterState.pengemasan.includes(o) ? 'eg-filter-chip--active' : ''"
-        >
-          <input type="checkbox" :checked="filterState.pengemasan.includes(o)" class="eg-filter-checkbox" @change="toggleFilter('pengemasan', o)" />
-          {{ o }}
-        </label>
-      </div>
-      <div class="eg-filter-count">
-        <i class="fas fa-database"></i>
-        <span>{{ filteredCount }}</span>
-        <span class="eg-filter-count-total"> / {{ dataGrup?.length ?? 0 }} grup</span>
-      </div>
-    </div>
+          <div class="flex items-start justify-between">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[14px] font-extrabold text-[#E6EDF3]">Filter status</span>
+              <span class="text-[11px] text-[#5B6776]">Pilih status per proses</span>
+            </div>
+            <button
+              class="cursor-pointer text-[11px] font-bold text-[#8B98A7] transition-colors hover:text-[#E6EDF3]"
+              @click="resetStatusFilters()"
+            >Reset</button>
+          </div>
 
-    <!-- ── WORKSPACE: table + activity log side-by-side ── -->
-    <div class="eg-workspace">
+          <div class="mt-3.5 grid grid-cols-2 gap-x-[18px] gap-y-3.5">
+            <div v-for="column in STATUS_COLUMNS" :key="column.field" class="flex flex-col gap-[7px]">
+              <div class="flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full" :style="{ background: PHASE_META[column.phase].color }"></span>
+                <span class="qc-display text-[10px] font-extrabold tracking-[0.06em]" :style="{ color: PHASE_META[column.phase].color }">
+                  {{ PHASE_META[column.phase].title }}
+                </span>
+                <span class="flex-1"></span>
+                <span v-if="showSkeleton" class="qc-skel h-2.5 w-[34px] rounded bg-white/10"></span>
+                <span v-else class="text-[10px] text-[#4E5A68]">{{ dataGrup?.length ?? 0 }} grup</span>
+              </div>
 
-      <!-- Admin table (shows all filteredRows, scrollable) -->
-      <div class="eg-table-area">
-        <div v-if="!dataGrup" class="eg-state-empty">
-          <i class="fas fa-spinner fa-spin"></i>
-          <span>Memuat data dari Supabase...</span>
-        </div>
-        <div v-else-if="filteredRows.length === 0" class="eg-state-empty">
-          <i class="fas fa-circle-xmark"></i>
-          <span>Tidak ada data yang cocok dengan filter aktif.</span>
-          <button class="eg-btn-secondary eg-mt-sm" @click="resetFilters">
-            <i class="fas fa-filter-circle-xmark"></i>Reset Filter
-          </button>
-        </div>
-        <div v-else class="eg-table-scroll">
-          <table :key="tableKey" class="eg-table">
-            <thead>
-              <tr class="eg-thead-row">
-                <th class="eg-th eg-th--no">No</th>
-                <th class="eg-th eg-th--id">ID Grup</th>
-                <th class="eg-th">Detail Hewan</th>
-                <th v-for="col in STATUS_COLUMNS" :key="col.field" class="eg-th eg-th--center">{{ col.label }}</th>
-                <th class="eg-th eg-th--meta">Score / Meta</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, i) in filteredRows"
-                :key="row.id_grup"
-                class="eg-tbody-row"
-                :class="[
-                  i % 2 === 1 ? 'eg-row--odd' : 'eg-row--even',
-                  isMutatingId.startsWith(row.id_grup + ':') ? 'eg-row--mutating' : '',
-                ]"
-              >
-                <td class="eg-td eg-td--no">{{ i + 1 }}</td>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="option in column.options" :key="option"
+                  class="flex h-[30px] cursor-pointer items-center gap-1.5 rounded-[9px] px-2.5 text-[12px] transition-colors"
+                  :class="filterStatus[column.phase].includes(option) ? 'font-extrabold' : 'font-semibold'"
+                  :style="filterStatus[column.phase].includes(option)
+                    ? { background: '#0F2A22', color: '#6EE7B7' }
+                    : { background: '#11171E', color: '#8B98A7', boxShadow: 'inset 0 0 0 1px #1B2632' }"
+                  @click="toggleStatusFilter(column.field, option)"
+                >
+                  <span v-if="filterStatus[column.phase].includes(option)" class="h-1.5 w-1.5 rounded-full bg-[#34D399]"></span>
+                  {{ option }}
+                </button>
+              </div>
+            </div>
+          </div>
 
-                <!-- ID + hide toggle + sohibul names -->
-                <td class="eg-td eg-td--id">
-                  <div class="eg-id-row">
-                    <span class="eg-id-badge">{{ row.id_grup }}</span>
-                    <button
-                      class="eg-hide-btn"
-                      :class="isGroupHidden(row.id_grup) ? 'eg-hide-btn--hidden' : ''"
-                      :title="isGroupHidden(row.id_grup) ? 'Tampilkan di Monitor TV' : 'Sembunyikan dari Monitor TV'"
-                      @click="toggleHideGroup(row.id_grup)"
-                    >
-                      <i :class="isGroupHidden(row.id_grup) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                    </button>
-                  </div>
-                  <div class="eg-sohibul-list">
-                    <span v-for="s in (row.sohibul_qurban ?? [])" :key="s.id ?? s.nama" class="eg-sohibul-name">{{ s.nama }}</span>
-                    <span v-if="!(row.sohibul_qurban?.length)" class="eg-sohibul-empty">—</span>
-                  </div>
-                </td>
-
-                <!-- Animal detail -->
-                <td class="eg-td eg-td--detail">
-                  <div class="eg-hewan-row">
-                    <i :class="[animalIcon(row.jenis_hewan), 'eg-hewan-icon']"></i>
-                    <span class="eg-hewan-jenis">{{ row.jenis_hewan }}</span>
-                  </div>
-                  <div class="eg-hewan-label">{{ row.label_tampilan ?? '—' }}</div>
-                  <div v-if="row.is_timer_active" class="eg-timer-badge">
-                    <i class="fas fa-hourglass-half"></i>Timer Aktif
-                  </div>
-                </td>
-
-                <!-- Status columns -->
-                <td v-for="col in STATUS_COLUMNS" :key="col.field" class="eg-td eg-td--status">
-                  <div class="eg-status-group">
-                    <button
-                      v-for="opt in col.options" :key="opt"
-                      class="eg-status-btn"
-                      :class="[
-                        'eg-status-btn--' + opt.toLowerCase(),
-                        { 'eg-status-btn--active':   (row as any)[col.field] === opt },
-                        { 'eg-status-btn--mutating': isMutating(row.id_grup, col.field) },
-                      ]"
-                      :disabled="isMutating(row.id_grup, col.field)"
-                      @click="handleStatusClick($event, row.id_grup, col.field, opt)"
-                    >
-                      <i v-if="isMutating(row.id_grup, col.field) && (row as any)[col.field] === opt" class="fas fa-circle-notch fa-spin"></i>
-                      {{ opt }}
-                    </button>
-                  </div>
-                </td>
-
-                <!-- Score / Meta -->
-                <td class="eg-td eg-td--meta">
-                  <div class="eg-score-row">
-                    <div class="eg-score-bar-track">
-                      <div class="eg-score-bar-fill" :style="{ width: rowScoreBarWidth(rowScore(row)) }"></div>
-                    </div>
-                    <span class="eg-score-label">{{ rowScore(row) }}/12</span>
-                  </div>
-                  <div v-if="row.updated_by" class="eg-meta-info">
-                    <i class="fas fa-user-pen"></i>{{ row.updated_by }}
-                  </div>
-                  <div v-if="row.qr_code_string" class="eg-meta-info">
-                    <i class="fas fa-qrcode"></i>{{ row.qr_code_string }}
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="eg-table-footer">
-            Menampilkan {{ filteredRows.length }} dari {{ dataGrup?.length ?? 0 }} grup hewan
+          <div class="mt-3.5 border-t border-[#1E2A38] pt-2 text-[10px] text-[#5B6776]">
+            Logika: status dalam satu proses = ATAU · antar proses = DAN
           </div>
         </div>
       </div>
 
-      <!-- Activity Log Feed -->
-      <div class="alf-root">
-        <div class="alf-header">
-          <div class="alf-header-left">
-            <span class="alf-status-dot" :class="alfIsLoading ? 'alf-dot--loading' : 'alf-dot--live'"></span>
-            <i class="fas fa-list-check alf-header-icon"></i>
-            <span class="alf-title">Log Aktivitas</span>
-            <span class="alf-subtitle">audit realtime</span>
-          </div>
-          <div class="alf-header-right">
-            <span v-if="alfIsLoading" class="alf-live-label alf-live-label--loading">Memuat...</span>
-            <span v-else class="alf-live-label alf-live-label--live">
-              <span class="alf-live-dot"></span>Live
+      <!-- species chips -->
+      <button
+        v-for="j in JENIS_OPTIONS" :key="j"
+        class="flex h-[39px] shrink-0 cursor-pointer items-center rounded-[14px] px-[11px] text-[14px] transition-colors"
+        :class="filterJenis.includes(j) ? 'font-extrabold' : 'font-semibold'"
+        :style="filterJenis.includes(j)
+          ? { background: '#0F2A22', color: '#6EE7B7' }
+          : { background: '#11171E', color: '#8B98A7' }"
+        @click="toggleJenis(j)"
+      >{{ j }}</button>
+
+      <div class="flex-1"></div>
+
+      <!-- TV page control -->
+      <div class="flex items-center gap-1.5 text-[13px] font-semibold text-[#7D8A99]">
+        <span class="whitespace-nowrap">TV · hal.</span>
+        <span v-if="showSkeleton" class="qc-skel h-[22px] w-[52px] rounded-md bg-white/10"></span>
+        <button
+          v-for="p in showSkeleton ? [] : totalPages" :key="p"
+          class="flex h-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-md px-1 text-[11px] font-bold transition-colors"
+          :style="p === activePage ? { background: '#0F2A22', color: '#6EE7B7' } : { color: '#5B6776' }"
+          @click="onPageClick(p)"
+        >{{ p }}</button>
+        <span v-if="!isMobileDevice" class="whitespace-nowrap tabular-nums">· {{ countdown }} dtk</span>
+      </div>
+
+      <!-- actions -->
+      <button
+        class="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-[14px] bg-[#11171E] text-[#E6EDF3] transition-colors hover:bg-[#151D26]"
+        title="Reset filter" @click="onResetFilters"
+      >
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.2 9.5A7 7 0 1 1 4 13.2" />
+          <path d="M3.2 4.2v5.2h5.2" />
+        </svg>
+      </button>
+
+      <button
+        class="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-[14px] bg-[#11171E] text-[#E6EDF3] transition-colors hover:bg-[#151D26]"
+        title="Export XLSX" @click="handleExport"
+      >
+        <svg width="16.2" height="22" viewBox="0 0 14 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+          <path d="M1 1h7l5 5v12H1V1Z" />
+          <path d="M8 1v5h5" />
+          
+        </svg>
+      </button>
+
+      <button
+        class="flex h-[45px] w-[50px] shrink-0 cursor-pointer items-center justify-center rounded-[14px] bg-[#34D399] text-[#052E22] transition-colors hover:bg-[#6EE7B7]"
+        title="Sinkronkan TV" @click="handleSyncMonitor"  
+      >
+        <span class="material-symbols-outlined">
+        connected_tv
+        </span>
+      </button>
+    </div>
+
+    <!-- ── WORKSPACE ──────────────────────────────────────────────────────── -->
+    <main class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-hidden max-xl:grid-cols-1 max-xl:overflow-visible">
+      <!-- Operations table -->
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#11171E] max-xl:min-h-[520px]">
+        <div class="flex h-[50px] shrink-0 items-center justify-between gap-3 px-4">
+          <div class="flex items-center gap-2">
+            <span v-if="showSkeleton" class="qc-skel h-4 w-[172px] rounded bg-white/10"></span>
+            <span v-else class="qc-display text-[15px] font-extrabold text-[#E6EDF3]">
+              {{ filteredCount }} dari {{ dataGrup?.length ?? 0 }} kelompok
             </span>
             <button
-              class="alf-ctrl-btn"
-              :class="isPaused ? 'alf-ctrl-btn--active' : ''"
-              :title="isPaused ? 'Resume auto-scroll' : 'Pause auto-scroll'"
+              v-if="hiddenGroupIds.length"
+              class="cursor-pointer rounded-md bg-[#2B2008] px-2 py-1 text-[11px] font-bold text-[#FCD34D] transition-colors hover:bg-[#3A2C0D]"
+              title="Tampilkan semua grup di TV"
+              @click="clearAllHidden"
+            >
+              {{ hiddenGroupIds.length }} disembunyikan · reset
+            </button>
+          </div>
+          <span class="hidden shrink-0 text-[13px] text-[#5B6776] sm:block">Klik status untuk mengubah langsung</span>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-auto" :class="SCROLLBAR_TABLE">
+          <div class="min-w-full">
+            <!-- column headers -->
+            <div
+              class="sticky top-0 z-10 grid h-[47px] grid-cols-[28px_180px_260px_repeat(4,110px)_minmax(120px,1fr)] items-center gap-2 bg-[#0D1218] px-4 text-[12px] font-extrabold tracking-[0.06em] text-[#5B6776]"
+            >
+              <span>NO</span>
+              <span>ID &amp; SHOHIBUL</span>
+              <span>HEWAN</span>
+              <span v-for="col in STATUS_COLUMNS" :key="col.field" class="text-center">{{ col.label }}</span>
+              <span>PROGRES</span>
+            </div>
+
+            <!-- loading skeleton -->
+            <div v-if="showSkeleton" aria-hidden="true">
+              <div
+                v-for="n in SKELETON_ROWS" :key="`skel-row-${n}`"
+                class="grid h-[67px] grid-cols-[28px_180px_260px_repeat(4,110px)_minmax(120px,1fr)] items-center gap-2 border-b border-[#151D26] px-4"
+              >
+                <span class="qc-skel h-3 w-4 rounded bg-white/10"></span>
+
+                <div class="flex min-w-0 flex-col gap-1.5">
+                  <span class="qc-skel h-4 w-[56px] rounded bg-white/10"></span>
+                  <span class="qc-skel h-3 w-[124px] rounded bg-white/10"></span>
+                </div>
+
+                <div class="flex min-w-0 flex-col gap-1.5">
+                  <span class="qc-skel h-4 w-[96px] rounded bg-white/10"></span>
+                  <span class="qc-skel h-3 w-[72px] rounded bg-white/10"></span>
+                </div>
+
+                <span
+                  v-for="c in 4" :key="`skel-pill-${n}-${c}`"
+                  class="qc-skel h-[34px] w-[110px] rounded-[10px] bg-white/10"
+                ></span>
+
+                <div class="flex w-full flex-col gap-1.5">
+                  <span class="qc-skel h-3 w-[74px] rounded bg-white/10"></span>
+                  <span class="qc-skel h-2 w-full rounded-full bg-white/10"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- empty -->
+            <div v-else-if="filteredRows.length === 0" class="flex flex-col items-center justify-center gap-2 py-16 text-[#5B6776]">
+              <i class="fas fa-inbox text-xl text-[#2B3B4C]"></i>
+              <span class="text-[12px]">Tidak ada grup hewan yang cocok dengan parameter filter.</span>
+              <button
+                class="mt-1 cursor-pointer rounded-[10px] bg-[#11171E] px-3 py-1.5 text-[11px] font-bold text-[#8B98A7] shadow-[inset_0_0_0_1px_#1B2632] transition-colors hover:text-[#E6EDF3]"
+                @click="onResetFilters"
+              >Reset filter</button>
+            </div>
+
+            <!-- rows -->
+            <template v-else>
+              <div
+                v-for="(row, i) in filteredRows" :key="`${row.id_grup}-${i}`"
+                class="group grid h-[67px] grid-cols-[28px_180px_260px_repeat(4,110px)_minmax(120px,1fr)] items-center gap-2 border-b border-[#151D26] px-4 transition-colors hover:bg-[#151D26]"
+                :class="[
+                  isGroupHidden(row.id_grup) ? 'opacity-40' : '',
+                  isMutatingId.startsWith(row.id_grup + ':') ? 'animate-[qc-row-mutate_0.6s_ease-out]' : '',
+                ]"
+              >
+                <span class="text-[14px] font-bold text-[#5B6776]">{{ i + 1 }}</span>
+
+                <!-- ID + sohibul -->
+                <div class="relative flex min-w-0 flex-col gap-0.5">
+                  <span class="qc-display text-[17px] font-black text-[#E6EDF3]">{{ row.id_grup }}</span>
+                  <span class="truncate text-[13px] text-[#9AA7B5]" :title="sohibulNames(row)">
+                    {{ sohibulNames(row) }}
+                  </span>
+                  <button
+                    class="absolute top-0 right-0 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                    :class="isGroupHidden(row.id_grup) ? 'text-[#F87171] opacity-100' : 'text-[#5B6776] hover:text-[#E6EDF3]'"
+                    :title="isGroupHidden(row.id_grup) ? 'Tampilkan di TV' : 'Sembunyikan dari TV'"
+                    @click.stop="onToggleHide(row.id_grup)"
+                  >
+                    <i :class="isGroupHidden(row.id_grup) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+
+                <!-- hewan -->
+                <div class="flex min-w-0 flex-col gap-0.5">
+                  <span class="truncate text-[15px] font-extrabold text-[#E6EDF3]">{{ row.label_tampilan ?? '—' }}</span>
+                  <span class="truncate text-[13px]" :style="{ color: row.is_timer_active ? '#FBBF24' : '#7D8A99' }">
+                    {{ porsiLabel(row) }}<template v-if="row.is_timer_active"> · timer aktif</template>
+                  </span>
+                </div>
+
+                <!-- status pills -->
+                <button
+                  v-for="col in STATUS_COLUMNS" :key="col.field"
+                  data-qc="status-pill"
+                  class="relative flex h-[34px] w-[110px] cursor-pointer items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-extrabold transition-[filter] hover:brightness-125 disabled:cursor-wait disabled:opacity-70"
+                  :style="pillStyle(statusOf(row, col.field))"
+                  :disabled="isMutating(row.id_grup, col.field)"
+                  @click="openStatusMenu($event, row.id_grup, col.field, col.options, statusOf(row, col.field))"
+                >
+                  <i v-if="isMutating(row.id_grup, col.field)" class="fas fa-circle-notch fa-spin text-[10px]"></i>
+                  <span v-else class="h-2.5 w-2.5 shrink-0 rounded-full" :style="dotStyle(statusOf(row, col.field))"></span>
+                  <span>{{ statusOf(row, col.field) }}</span>
+                  <svg width="8" height="4" viewBox="0 0 8 4" fill="none" stroke="currentColor" stroke-width="1.3" class="shrink-0 opacity-80">
+                    <path d="M.5.5 4 3.5 7.5.5" />
+                  </svg>
+                </button>
+
+                <!-- progress -->
+                <div class="flex w-full flex-col gap-1.5">
+                  <span class="text-[13px] font-extrabold text-[#C9D3DE]">{{ rowScore(row) }}/12 · {{ rowPct(row) }}%</span>
+                  <div class="h-2 w-full overflow-hidden rounded-full bg-[#1E2733]">
+                    <div
+                      class="h-full rounded-full bg-[#34D399] transition-all duration-300"
+                      :style="{ width: rowPct(row) + '%' }"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- Audit log -->
+      <aside class="flex min-h-0 flex-col gap-1.5 overflow-hidden rounded-[28px] bg-[#11171E] p-3 max-xl:h-[420px]">
+        <div class="flex h-[47px] shrink-0 items-center justify-between gap-2 px-3.5">
+          <h2 class="text-[16px] font-extrabold text-[#E6EDF3]">Log audit realtime</h2>
+          <div class="flex items-center gap-1">
+            <button
+              class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[10px] text-[#5B6776] transition-colors hover:text-[#E6EDF3]"
+              :class="isPaused ? 'text-[#FCD34D]' : ''"
+              :title="isPaused ? 'Lanjutkan auto-scroll' : 'Jeda auto-scroll'"
               @click="isPaused = !isPaused"
             >
               <i :class="isPaused ? 'fas fa-play' : 'fas fa-pause'"></i>
-              {{ isPaused ? 'Lanjut' : 'Jeda' }}
             </button>
-            <button class="alf-ctrl-btn alf-ctrl-btn--danger" title="Hapus semua entri log dari tampilan" @click="clearView">
-              <i class="fas fa-trash-can"></i>Hapus
+            <button
+              class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[10px] text-[#5B6776] transition-colors hover:text-[#F87171]"
+              title="Bersihkan log tampilan" @click="clearView"
+            >
+              <i class="fas fa-trash-can"></i>
             </button>
           </div>
         </div>
 
-        <div ref="feedEl" class="alf-body" @scroll="onFeedScroll">
-          <!-- Empty -->
-          <div v-if="alfLogs.length === 0 && !alfIsLoading" class="alf-empty">
-            <i class="fas fa-satellite-dish alf-empty-icon"></i>
-            <span class="alf-empty-title">Menunggu aktivitas...</span>
-            <span class="alf-empty-sub">Perubahan status akan muncul di sini secara realtime.</span>
+        <div ref="feedEl" class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto" :class="SCROLLBAR_FEED" @scroll="onFeedScroll">
+          <template v-if="showSkeleton">
+            <div
+              v-for="n in SKELETON_LOGS" :key="`skel-log-${n}`"
+              class="flex flex-col gap-1.5 rounded-[20px] bg-[#161E28] p-3.5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="qc-skel h-3 w-[92px] rounded bg-white/10"></span>
+                <span class="qc-skel h-3 w-[52px] rounded bg-white/10"></span>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <span class="qc-skel h-[19px] w-[54px] rounded bg-white/10"></span>
+                <span class="qc-skel h-4 w-[116px] rounded bg-white/10"></span>
+              </div>
+              <span class="qc-skel h-3 w-[104px] rounded bg-white/10"></span>
+            </div>
+          </template>
+
+          <div v-else-if="alfLogs.length === 0 && alfIsLoading" class="flex flex-col items-center justify-center gap-2 py-10 text-[12px] text-[#5B6776]">
+            <i class="fas fa-circle-notch fa-spin"></i>
+            <span>Memuat riwayat aktivitas…</span>
           </div>
-          <!-- Skeleton -->
-          <div v-else-if="alfIsLoading && alfLogs.length === 0" class="alf-skeleton-list">
-            <div v-for="n in 5" :key="n" class="alf-skeleton" :style="{ width: (45 + n * 9) + '%', animationDelay: (n * 0.12) + 's' }"></div>
+
+          <div v-else-if="alfLogs.length === 0" class="flex flex-col items-center justify-center gap-1.5 py-10 text-center text-[#5B6776]">
+            <i class="fas fa-satellite-dish text-lg text-[#2B3B4C]"></i>
+            <span class="text-[12px] font-bold text-[#8B98A7]">Menunggu transmisi baru</span>
+            <span class="text-[11px] text-[#4E5A68]">Perubahan status hewan akan terdaftar di sini secara realtime.</span>
           </div>
-          <!-- Log rows -->
-          <div
-            v-for="(log, i) in alfLogs"
-            :key="log.id ?? `log-${i}`"
-            class="alf-row"
-            :class="{ 'alf-row--even': i % 2 === 0 }"
+
+          <template v-else>
+            <article
+              v-for="(log, i) in alfLogs" :key="log.id ?? `log-${i}`"
+              class="flex flex-col gap-1.5 rounded-[20px] bg-[#161E28] p-3.5 transition-colors hover:bg-[#19222D]"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="qc-display text-[12px] font-black tracking-[0.06em]" :style="{ color: faseColor(log.fase) }">
+                  {{ faseLabel(log.fase) }}
+                </span>
+                <span class="text-[12px] tabular-nums text-[#5B6776]">{{ formatTime(log.created_at) }}</span>
+              </div>
+
+              <div class="flex items-center gap-2.5">
+                <span class="qc-display shrink-0 text-[19px] font-black text-[#E6EDF3]">{{ log.id_grup }}</span>
+                <span class="truncate text-[16px] font-extrabold" :style="{ color: statusTextColor(log.status_baru) }">
+                  <span class="text-[#5B6776]">{{ log.status_lama }}</span>
+                  <span class="px-1 text-[#4E5A68]">→</span>{{ log.status_baru }}
+                </span>
+              </div>
+
+              <span class="text-[12px] font-semibold text-[#7D8A99]">oleh {{ log.actor_name }}</span>
+            </article>
+          </template>
+        </div>
+
+        <div class="flex h-[39px] shrink-0 items-center justify-between rounded-[12px] bg-[#0D1218] px-3">
+          <span class="text-[12px] text-[#5B6776]">{{ showSkeleton ? 'Memuat…' : (alfIsLoading ? 'Syncing…' : 'Live audit feed') }}</span>
+          <span v-if="showSkeleton" class="qc-skel h-3 w-12 rounded bg-white/10"></span>
+          <span v-else class="text-[12px] font-semibold text-[#C9D3DE]">{{ entryCount }} entri</span>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ── STATUS MENU (teleported, positioned at the clicked pill) ────────── -->
+    <Teleport to="body">
+      <div v-if="statusMenu" class="contents">
+        <div
+          data-qc="status-menu"
+          class="fixed z-[300] w-[158px] rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.65)]"
+          :style="{ background: '#1C2632', left: statusMenu.x + 'px', top: statusMenu.y + 'px' }"
+        >
+          <div class="flex h-[21px] items-center px-2.5 text-[11px] font-extrabold tracking-[0.08em] text-[#6B7889]">
+            UBAH STATUS
+          </div>
+          <button
+            v-for="option in statusMenu.options" :key="option"
+            class="flex h-[34px] w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 text-[13px] font-extrabold transition-colors"
+            :style="option === statusMenu.current
+              ? { background: STATUS_STYLE[statusTone(option)].bg, color: STATUS_STYLE[statusTone(option)].text }
+              : { color: STATUS_STYLE[statusTone(option)].text }"
+            @click="chooseStatus(option)"
           >
-            <span class="alf-ts">{{ formatTime(log.created_at) }}</span>
-            <span class="alf-actor" :title="log.actor_name">{{ log.actor_name }}</span>
-            <span class="alf-sep">›</span>
-            <span class="alf-id">{{ log.id_grup }}</span>
-            <span class="alf-fase-badge" :class="faseClass(log.fase)">{{ faseLabel(log.fase) }}</span>
-            <span class="alf-flow">
-              <span class="alf-status-old">{{ log.status_lama }}</span>
-              <span class="alf-arrow">→</span>
-              <span :class="['alf-status-new', statusColor(log.status_baru)]">{{ log.status_baru }}</span>
-            </span>
-            <span class="alf-source-badge" :class="sourceClass(log.action_source)">{{ sourceLabel(log.action_source) }}</span>
-          </div>
-        </div>
-
-        <div class="alf-footer">
-          <div class="alf-footer-left">
-            <span class="alf-footer-text">
-              Entri:<span :class="isAtCapacity ? 'alf-footer-text--capacity' : 'alf-footer-text--count'">{{ entryCount }}</span>/100
-            </span>
-            <span v-if="isAtCapacity" class="alf-footer-text alf-footer-text--warn">
-              <i class="fas fa-triangle-exclamation"></i>Buffer penuh
-            </span>
-          </div>
-          <div class="alf-footer-right">
-            <span v-if="isPaused" class="alf-footer-text alf-footer-text--paused">
-              <i class="fas fa-pause"></i>Scroll dijeda
-            </span>
-            <span v-else class="alf-footer-text alf-footer-text--auto">
-              <i class="fas fa-arrow-up"></i>Auto-scroll aktif
-            </span>
-          </div>
+            <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="dotStyle(option)"></span>
+            <span class="flex-1 text-left">{{ option }}</span>
+            <svg v-if="option === statusMenu.current" width="12" height="9" viewBox="0 0 12 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 4.5 4.5 8 11 1" />
+            </svg>
+          </button>
         </div>
       </div>
+    </Teleport>
 
+    <!-- ── TOAST ──────────────────────────────────────────────────────────── -->
+    <div
+      class="pointer-events-none fixed bottom-10 left-1/2 z-[999] -translate-x-1/2 rounded-2xl bg-[#161E28] px-4 py-2 text-[12px] font-semibold text-[#E6EDF3] shadow-[0_16px_40px_rgba(0,0,0,0.55)] ring-1 ring-[#1E2A38] transition-all duration-150"
+      :class="toastVisible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'"
+    >
+      {{ toastMsg }}
     </div>
-
-    <!-- ── FOOTER ── -->
-    <footer class="eg-footer">
-      <span class="eg-footer-brand">Ahsantv Qurban System</span>
-      <span class="eg-footer-sep">·</span>
-      <span class="eg-footer-info">Admin Panel v2.0.0</span>
-      <span class="eg-footer-sep">·</span>
-      <span class="eg-footer-info">Total Grup: {{ dataGrup?.length ?? 0 }}</span>
-      <span class="eg-footer-sep">·</span>
-      <span class="eg-footer-info">Filter Aktif: {{ filteredCount }}</span>
-      <div class="eg-footer-right">
-        <span v-if="!isMobileDevice" class="eg-footer-info">TV Hal {{ activePage }} / {{ totalPages }}</span>
-        <span v-if="hiddenGroupIds.length > 0" class="eg-footer-hidden">
-          <i class="fas fa-eye-slash"></i>{{ hiddenGroupIds.length }} Tersembunyi
-        </span>
-        <button v-if="hiddenGroupIds.length > 0" class="eg-footer-clear-btn" @click="clearAllHidden">Tampilkan Semua</button>
-      </div>
-    </footer>
-
   </div>
 </template>
 
 <style>
-/* ── Reset / Root ─────────────────────────────────────────────────────────── */
-html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background-color:#f0f4f8; }
-*, *::before, *::after { box-sizing:border-box; }
-
-.eg-root {
-  display:flex; flex-direction:column; height:100vh; overflow:hidden;
-  background-color:#f0f4f8;  /* surface-container-low */
-  color:#171c1f;             /* on-surface */
-  font-family:'Inter',sans-serif; font-size:14px; line-height:20px;
+.qc-root .qc-display {
+  font-family: 'Montserrat', 'Inter', system-ui, sans-serif;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
-.eg-header {
-  display:flex; align-items:center; justify-content:space-between;
-  gap:16px; padding:0 32px; height:56px;
-  background-color:#022C22;  /* sidebar-dark */
-  flex-shrink:0; border-bottom:1px solid #064e3b;
+@keyframes qc-ripple {
+  0%   { transform: scale(0);   opacity: 0.8; }
+  100% { transform: scale(2.8); opacity: 0; }
 }
-.eg-header-brand  { display:flex; align-items:center; gap:12px; min-width:0; }
-.eg-header-icon   {
-  width:36px; height:36px; border-radius:0.5rem;
-  background-color:rgba(149,211,186,0.15); border:1px solid rgba(149,211,186,0.3);
-  display:flex; align-items:center; justify-content:center;
-  color:#95d3ba; font-size:15px; flex-shrink:0;
-}
-.eg-header-title-group { display:flex; flex-direction:column; gap:1px; }
-.eg-header-title  { font-size:18px; font-weight:600; line-height:28px; color:#fff; margin:0; white-space:nowrap; letter-spacing:-0.01em; }
-.eg-header-subtitle { font-size:11px; color:#80bea6; white-space:nowrap; }
-
-.eg-sync-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:9999px; font-size:12px; font-weight:600; }
-.eg-sync-live    { background-color:rgba(22,163,74,0.2); color:#86f2e4; border:1px solid rgba(134,242,228,0.3); }
-.eg-sync-offline { background-color:rgba(186,26,26,0.2); color:#fca5a5; border:1px solid rgba(252,165,165,0.3); }
-.eg-sync-dot { width:7px; height:7px; border-radius:9999px; background-color:currentColor; flex-shrink:0; }
-.eg-sync-live .eg-sync-dot { animation:eg-pulse 2s ease-in-out infinite; }
-@keyframes eg-pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
-
-.eg-header-right     { display:flex; align-items:center; gap:16px; flex-shrink:0; }
-.eg-device-tag       {
-  font-size:11px; font-weight:600; color:#80bea6;
-  background-color:rgba(149,211,186,0.1); border:1px solid rgba(149,211,186,0.25);
-  padding:2px 10px; border-radius:9999px; letter-spacing:0.04em;
-}
-.eg-global-score-wrap { display:flex; align-items:center; gap:8px; }
-.eg-global-score-label { font-size:11px; color:#80bea6; white-space:nowrap; }
-.eg-global-bar-track   { width:100px; height:6px; background-color:rgba(149,211,186,0.15); border-radius:9999px; overflow:hidden; }
-.eg-global-bar-fill    { height:100%; background:linear-gradient(90deg,#006a61,#86f2e4); border-radius:9999px; transition:width 0.8s ease; }
-.eg-global-score-pct   { font-size:14px; font-weight:700; color:#95d3ba; min-width:36px; text-align:right; }
-
-/* ── Phase deck ─────────────────────────────────────────────────────────── */
-.eg-phase-deck {
-  display:flex; gap:8px; padding:12px 32px;
-  background-color:#ffffff; border-bottom:1px solid #E2E8F0; flex-shrink:0;
-}
-.eg-phase-card {
-  flex:1; background-color:#f0f4f8; border:1px solid #E2E8F0;
-  border-radius:0.5rem; padding:10px 14px;
-  display:flex; flex-direction:column; gap:6px; min-width:0;
-}
-.eg-phase-card-header { display:flex; align-items:center; gap:10px; }
-.eg-phase-icon {
-  width:32px; height:32px; border-radius:0.375rem;
-  background-color:#064e3b; display:flex; align-items:center; justify-content:center;
-  color:#95d3ba; font-size:13px; flex-shrink:0;
-}
-.eg-phase-info    { display:flex; flex-direction:column; gap:1px; min-width:0; }
-.eg-phase-label   { font-size:12px; font-weight:600; color:#003527; letter-spacing:0.05em; line-height:16px; }
-.eg-phase-fraction{ font-size:11px; color:#404944; opacity:0.8; }
-.eg-phase-chips   { display:flex; gap:4px; }
-.eg-phase-chip    { font-size:11px; font-weight:600; padding:1px 8px; border-radius:9999px; border:1px solid transparent; }
-.chip-belum   { background-color:#FEE2E2; color:#EF4444; border-color:rgba(239,68,68,0.3); }
-.chip-proses  { background-color:#FEF3C7; color:#D97706; border-color:rgba(245,158,11,0.3); }
-.chip-selesai { background-color:#DCFCE7; color:#16A34A; border-color:rgba(22,163,74,0.3); }
-.eg-phase-bar-track { height:5px; background-color:#dfe3e7; border-radius:9999px; overflow:hidden; }
-.eg-phase-bar-fill  { height:100%; background:linear-gradient(90deg,#006a61,#86f2e4); border-radius:9999px; transition:width 0.9s ease-out; }
-
-.eg-global-card {
-  width:140px; flex-shrink:0;
-  background-color:#003527; border:1px solid #064e3b;
-  border-radius:0.5rem; padding:10px 14px;
-  display:flex; flex-direction:column; justify-content:center; gap:3px;
-}
-.eg-global-card-label    { font-size:11px; font-weight:600; color:#80bea6; letter-spacing:0.04em; text-transform:uppercase; }
-.eg-global-card-pct      { font-size:30px; font-weight:700; color:#fff; line-height:36px; letter-spacing:-0.02em; }
-.eg-global-card-pct-unit { font-size:18px; font-weight:600; color:#95d3ba; }
-.eg-global-card-sub      { font-size:11px; color:#80bea6; }
-.eg-global-card-bar-track{ height:4px; background-color:rgba(149,211,186,0.15); border-radius:9999px; overflow:hidden; margin-top:4px; }
-.eg-global-card-bar-fill { height:100%; background:linear-gradient(90deg,#006a61,#86f2e4); border-radius:9999px; transition:width 0.9s ease; }
-
-/* ── Control bar ─────────────────────────────────────────────────────────── */
-.eg-control-bar {
-  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
-  padding:8px 32px; background-color:#ffffff; border-bottom:1px solid #E2E8F0;
-  min-height:48px; flex-shrink:0;
-}
-.eg-ctrl-group  { display:flex; align-items:center; gap:6px; }
-.eg-ctrl-icon   { color:#006a61; font-size:12px; }
-.eg-ctrl-label  { font-size:12px; font-weight:600; color:#404944; white-space:nowrap; }
-.eg-ctrl-divider{ width:1px; height:24px; background-color:#E2E8F0; margin:0 4px; }
-
-.eg-page-btn {
-  width:30px; height:30px; display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:500; font-family:'Inter',sans-serif;
-  border:1px solid #bfc9c3; border-radius:0.375rem;
-  background-color:transparent; color:#404944; cursor:pointer; transition:all 0.15s ease;
-}
-.eg-page-btn:hover { border-color:#006a61; color:#006a61; }
-.eg-page-btn--active {
-  background-color:#003527; border-color:#003527; color:#fff;
-  font-weight:600; box-shadow:0 1px 3px rgba(0,53,39,0.25);
-}
-.eg-countdown-track { width:64px; height:6px; background-color:#eaeef2; border-radius:9999px; overflow:hidden; border:1px solid #E2E8F0; }
-.eg-countdown-fill  { height:100%; background:linear-gradient(90deg,#006a61,#86f2e4); border-radius:9999px; transition:width 1s linear; }
-
-.eg-search-wrap  { position:relative; flex:1; max-width:320px; min-width:200px; }
-.eg-search-icon  { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#707974; font-size:12px; pointer-events:none; }
-.eg-search-input {
-  width:100%; background-color:#f0f4f8; border:1px solid #bfc9c3;
-  border-radius:0.375rem; color:#171c1f; font-family:'Inter',sans-serif;
-  font-size:13px; padding:6px 10px 6px 30px; outline:none;
-  transition:border-color 0.15s ease,box-shadow 0.15s ease;
-}
-.eg-search-input::placeholder { color:#707974; opacity:0.8; }
-.eg-search-input:focus { border-color:#006a61; box-shadow:0 0 0 2px rgba(0,106,97,0.12); background-color:#fff; }
-
-.eg-quick-filters { display:flex; align-items:center; gap:4px; }
-.eg-quick-chip {
-  padding:4px 12px; font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
-  border:1px solid #bfc9c3; border-radius:9999px; color:#404944;
-  background:transparent; cursor:pointer; transition:all 0.15s ease;
-}
-.eg-quick-chip:hover { border-color:#006a61; color:#006a61; background-color:rgba(0,106,97,0.06); }
-
-.eg-ctrl-actions { margin-left:auto; display:flex; align-items:center; gap:6px; flex-shrink:0; }
-.eg-btn-primary {
-  display:inline-flex; align-items:center; gap:6px; padding:7px 16px;
-  background-color:#003527; color:#fff; border:none; border-radius:0.375rem;
-  font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
-  cursor:pointer; transition:all 0.15s ease; white-space:nowrap;
-}
-.eg-btn-primary:hover { background-color:#064e3b; box-shadow:0 2px 6px rgba(0,53,39,0.2); }
-.eg-btn-secondary {
-  display:inline-flex; align-items:center; gap:6px; padding:6px 14px;
-  background-color:transparent; color:#006a61; border:1px solid #006a61;
-  border-radius:0.375rem; font-family:'Inter',sans-serif; font-size:12px; font-weight:600;
-  cursor:pointer; transition:all 0.15s ease; white-space:nowrap;
-}
-.eg-btn-secondary:hover { background-color:rgba(0,106,97,0.08); }
-.eg-btn-ghost {
-  display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
-  background-color:transparent; color:#404944; border:1px solid #E2E8F0;
-  border-radius:0.375rem; font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
-  cursor:pointer; transition:all 0.15s ease; white-space:nowrap;
-}
-.eg-btn-ghost:hover { background-color:#eaeef2; border-color:#bfc9c3; color:#171c1f; }
-.eg-mt-sm { margin-top:8px; }
-
-/* ── Filter panel ────────────────────────────────────────────────────────── */
-.eg-filter-panel {
-  display:flex; flex-wrap:wrap; align-items:center; gap:16px;
-  padding:6px 32px; background-color:#f6fafe; border-bottom:1px solid #E2E8F0;
-  min-height:38px; flex-shrink:0;
-}
-.eg-filter-group   { display:flex; align-items:center; gap:6px; }
-.eg-filter-label   { font-size:11px; font-weight:600; color:#404944; letter-spacing:0.04em; text-transform:uppercase; white-space:nowrap; }
-.eg-filter-chip    {
-  display:inline-flex; align-items:center; gap:5px;
-  font-size:12px; font-weight:500; color:#404944; cursor:pointer; user-select:none;
-  padding:2px 10px; border:1px solid #bfc9c3; border-radius:9999px;
-  transition:all 0.12s ease; background-color:transparent;
-}
-.eg-filter-chip:hover    { border-color:#006a61; color:#006a61; }
-.eg-filter-chip--active  { background-color:#006a61; border-color:#006a61; color:#fff; }
-.eg-filter-checkbox      { width:12px; height:12px; accent-color:#006a61; }
-.eg-filter-count         { margin-left:auto; display:flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:#006a61; }
-.eg-filter-count-total   { color:#707974; font-weight:400; }
-
-/* ── Workspace ───────────────────────────────────────────────────────────── */
-.eg-workspace { flex:1; display:flex; min-height:0; overflow:hidden; }
-.eg-table-area {
-  flex:1; display:flex; flex-direction:column;
-  min-width:0; overflow:hidden;
-}
-.eg-state-empty {
-  flex:1; display:flex; flex-direction:column; align-items:center;
-  justify-content:center; gap:8px; font-size:14px; color:#404944; opacity:0.7;
-}
-.eg-state-empty i { font-size:24px; color:#006a61; }
-.eg-table-scroll { flex:1; overflow:auto; padding:0; }
-.eg-table-scroll::-webkit-scrollbar       { width:6px; height:6px; }
-.eg-table-scroll::-webkit-scrollbar-track { background:#f0f4f8; }
-.eg-table-scroll::-webkit-scrollbar-thumb { background:#bfc9c3; border-radius:3px; }
-.eg-table-scroll::-webkit-scrollbar-thumb:hover { background:#707974; }
-
-/* ── Table ───────────────────────────────────────────────────────────────── */
-.eg-table { border-collapse:collapse; width:100%; min-width:900px; }
-.eg-thead-row {
-  background-color:#f6fafe; position:sticky; top:0; z-index:5;
-  border-bottom:2px solid #E2E8F0;
-}
-.eg-th {
-  padding:9px 12px; font-size:12px; font-weight:600; color:#404944;
-  letter-spacing:0.05em; text-transform:uppercase; text-align:left;
-  white-space:nowrap; border-bottom:2px solid #bfc9c3;
-}
-.eg-th--no     { width:48px; text-align:center; }
-.eg-th--id     { width:180px; }
-.eg-th--meta   { width:140px; }
-.eg-th--center { text-align:center; }
-
-.eg-tbody-row { border-bottom:1px solid #E2E8F0; transition:background-color 0.1s ease; }
-.eg-row--even { background-color:#ffffff; }
-.eg-row--odd  { background-color:#f6fafe; }
-.eg-tbody-row:hover { background-color:rgba(0,106,97,0.04); }
-.eg-row--mutating { animation:eg-row-mutate 0.6s ease-in-out; }
-@keyframes eg-row-mutate {
-  0%,100%{ background-color:transparent; }
-  50%    { background-color:rgba(134,242,228,0.12); }
+@keyframes qc-row-mutate {
+  0%   { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0); }
+  40%  { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.4); }
+  100% { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0); }
 }
 
-.eg-td       { padding:10px 12px; font-size:13px; color:#171c1f; vertical-align:middle; }
-.eg-td--no   { text-align:center; color:#707974; font-size:12px; width:48px; }
-.eg-td--id   { width:180px; }
-.eg-td--detail  { min-width:160px; }
-.eg-td--status  { text-align:center; vertical-align:middle; }
-.eg-td--meta    { width:140px; }
-
-.eg-id-row    { display:flex; align-items:center; gap:6px; }
-.eg-id-badge  {
-  display:inline-flex; align-items:center; padding:2px 8px;
-  border:1px solid #006a61; border-radius:0.25rem;
-  background-color:rgba(0,106,97,0.06); color:#003527;
-  font-size:12px; font-weight:600; letter-spacing:0.03em;
-}
-.eg-hide-btn {
-  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
-  border:1px solid #bfc9c3; border-radius:0.25rem;
-  background:transparent; cursor:pointer; color:#707974; font-size:10px;
-  transition:all 0.15s ease;
-}
-.eg-hide-btn:hover      { border-color:#006a61; color:#006a61; }
-.eg-hide-btn--hidden    { border-color:#EF4444; color:#EF4444; background-color:rgba(239,68,68,0.06); }
-.eg-sohibul-list        { display:flex; flex-direction:column; gap:1px; margin-top:4px; }
-.eg-sohibul-name        { font-size:11px; color:#404944; line-height:16px; }
-.eg-sohibul-empty       { font-size:11px; color:#707974; opacity:0.6; }
-
-.eg-hewan-row  { display:flex; align-items:center; gap:6px; }
-.eg-hewan-icon { color:#006a61; font-size:13px; flex-shrink:0; }
-.eg-hewan-jenis{ font-size:13px; font-weight:600; color:#003527; text-transform:capitalize; }
-.eg-hewan-label{ font-size:11px; color:#404944; margin-top:2px; opacity:0.8; }
-.eg-timer-badge{
-  display:inline-flex; align-items:center; gap:4px;
-  font-size:10px; font-weight:600; color:#D97706;
-  background-color:#FEF3C7; border:1px solid rgba(245,158,11,0.3);
-  padding:1px 6px; border-radius:9999px; margin-top:4px;
-  animation:eg-timer-pulse 1.8s ease-in-out infinite;
-}
-@keyframes eg-timer-pulse { 0%,100%{opacity:1}50%{opacity:0.6} }
-
-.eg-status-group { display:inline-flex; gap:3px; flex-wrap:nowrap; }
-.eg-status-btn {
-  position:relative; overflow:hidden;
-  display:inline-flex; align-items:center; justify-content:center; gap:3px;
-  border:1px solid #bfc9c3; border-radius:0.25rem;
-  background-color:transparent; color:#404944; cursor:pointer;
-  font-family:'Inter',sans-serif; font-size:11px; font-weight:500;
-  padding:3px 8px; transition:all 0.15s ease; white-space:nowrap;
-}
-.eg-status-btn:not(:disabled):not(.eg-status-btn--active):hover {
-  border-color:#2b6954; color:#2b6954; background-color:rgba(43,105,84,0.05);
-}
-.eg-status-btn:active   { transform:scale(0.95); }
-.eg-status-btn:disabled { cursor:not-allowed; opacity:0.5; }
-.eg-status-btn--mutating{ opacity:0.6; cursor:wait; }
-
-/* Active state per design.md chips */
-.eg-status-btn--belum.eg-status-btn--active    { background-color:#FEE2E2; color:#EF4444; border-color:#EF4444; font-weight:600; }
-.eg-status-btn--proses.eg-status-btn--active   {
-  background-color:#FEF3C7; color:#D97706; border-color:#F59E0B; font-weight:600;
-  animation:eg-proses-pulse 2s ease-in-out infinite;
-}
-@keyframes eg-proses-pulse {
-  0%,100%{ box-shadow:0 0 0 0 rgba(245,158,11,0); }
-  50%    { box-shadow:0 0 0 3px rgba(245,158,11,0.15); }
-}
-.eg-status-btn--selesai.eg-status-btn--active,
-.eg-status-btn--diterima.eg-status-btn--active { background-color:#DCFCE7; color:#16A34A; border-color:#16A34A; font-weight:600; }
-
-.btn-ripple {
-  position:absolute; border-radius:50%; transform:scale(0);
-  background:rgba(0,106,97,0.18); pointer-events:none;
-  animation:eg-ripple 0.52s ease-out forwards;
-}
-@keyframes eg-ripple { 0%{transform:scale(0);opacity:1}100%{transform:scale(2.8);opacity:0} }
-
-/* Score / meta */
-.eg-score-row       { display:flex; align-items:center; gap:6px; }
-.eg-score-bar-track { flex:1; height:5px; background-color:#eaeef2; border-radius:9999px; overflow:hidden; }
-.eg-score-bar-fill  { height:100%; background:linear-gradient(90deg,#006a61,#86f2e4); border-radius:9999px; transition:width 0.6s ease; }
-.eg-score-label     { font-size:11px; font-weight:600; color:#006a61; white-space:nowrap; }
-.eg-meta-info       {
-  font-size:10px; color:#707974; margin-top:3px; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis; max-width:130px;
-  display:flex; align-items:center; gap:4px;
-}
-.eg-table-footer {
-  text-align:right; padding:8px 16px 6px; font-size:12px; color:#707974;
-  background-color:#f6fafe; border-top:1px solid #E2E8F0;
+/* ── Skeleton placeholders ───────────────────────────────────────────────────
+   Background colour comes from the utility class on each element (white/10 on
+   dark surfaces, black/15 on the green TOTAL card); this only adds the sweep. */
+.qc-skel {
+  position: relative;
+  overflow: hidden;
 }
 
-/* ── Activity Log Feed ────────────────────────────────────────────────────── */
-.alf-root {
-  display:flex; flex-direction:column; width:480px; flex-shrink:0;
-  height:100%; overflow:hidden; background-color:#ffffff;
-  border-left:1px solid #E2E8F0; font-family:'Inter',sans-serif;
+.qc-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 100%
+  );
+  animation: qc-skel-sweep 1s ease-in-out infinite;
 }
-.alf-header {
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:8px 14px; background-color:#f6fafe; border-bottom:1px solid #E2E8F0; flex-shrink:0;
+
+@keyframes qc-skel-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
-.alf-header-left  { display:flex; align-items:center; gap:7px; min-width:0; }
-.alf-status-dot   { width:7px; height:7px; border-radius:9999px; flex-shrink:0; }
-.alf-dot--live    { background-color:#16A34A; box-shadow:0 0 0 2px rgba(22,163,74,0.2); animation:alf-dot-pulse 2s ease-in-out infinite; }
-.alf-dot--loading { background-color:#F59E0B; box-shadow:0 0 0 2px rgba(245,158,11,0.2); animation:alf-dot-pulse 0.8s ease-in-out infinite; }
-@keyframes alf-dot-pulse { 0%,100%{opacity:1}50%{opacity:0.35} }
-.alf-header-icon { font-size:11px; color:#006a61; }
-.alf-title    { font-size:13px; font-weight:600; color:#003527; white-space:nowrap; letter-spacing:-0.01em; }
-.alf-subtitle { font-size:11px; color:#707974; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-.alf-header-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
-.alf-live-label {
-  display:inline-flex; align-items:center; gap:5px;
-  font-size:11px; font-weight:600; padding:2px 8px; border-radius:9999px;
-}
-.alf-live-label--live    { color:#16A34A; background-color:#DCFCE7; border:1px solid rgba(22,163,74,0.25); }
-.alf-live-label--loading { color:#D97706; background-color:#FEF3C7; border:1px solid rgba(245,158,11,0.25); animation:alf-fade 1s ease-in-out infinite; }
-@keyframes alf-fade { 0%,100%{opacity:1}50%{opacity:0.5} }
-.alf-live-dot { width:6px; height:6px; border-radius:9999px; background-color:currentColor; animation:alf-dot-pulse 2s ease-in-out infinite; }
-
-.alf-ctrl-btn {
-  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
-  font-family:'Inter',sans-serif; font-size:11px; font-weight:600;
-  border:1px solid #bfc9c3; border-radius:0.375rem;
-  background:transparent; color:#404944; cursor:pointer; transition:all 0.15s ease; white-space:nowrap;
-}
-.alf-ctrl-btn:hover       { border-color:#006a61; color:#006a61; background-color:rgba(0,106,97,0.05); }
-.alf-ctrl-btn--active     { background-color:rgba(0,106,97,0.08); border-color:#006a61; color:#006a61; }
-.alf-ctrl-btn--danger     { color:#EF4444; border-color:rgba(239,68,68,0.3); }
-.alf-ctrl-btn--danger:hover{ background-color:#FEE2E2; border-color:#EF4444; color:#EF4444; }
-
-.alf-body { flex:1; overflow-y:auto; padding:4px 0; }
-.alf-body::-webkit-scrollbar       { width:5px; }
-.alf-body::-webkit-scrollbar-track { background:#f6fafe; }
-.alf-body::-webkit-scrollbar-thumb { background:#bfc9c3; border-radius:3px; }
-.alf-body::-webkit-scrollbar-thumb:hover { background:#707974; }
-
-.alf-empty       { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 24px; text-align:center; gap:8px; }
-.alf-empty-icon  { font-size:26px; color:#bfc9c3; }
-.alf-empty-title { font-size:13px; font-weight:600; color:#404944; }
-.alf-empty-sub   { font-size:12px; color:#707974; line-height:18px; }
-
-.alf-skeleton-list { padding:10px 14px; display:flex; flex-direction:column; gap:8px; }
-.alf-skeleton {
-  height:12px; border-radius:0.25rem;
-  background:linear-gradient(90deg,#eaeef2 25%,#dfe3e7 50%,#eaeef2 75%);
-  background-size:200% 100%;
-  animation:alf-skeleton-shimmer 1.4s infinite ease-in-out;
-}
-@keyframes alf-skeleton-shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
-
-.alf-row {
-  display:flex; align-items:center; gap:5px; padding:5px 14px;
-  border-left:2px solid transparent;
-  transition:background-color 0.1s ease, border-left-color 0.1s ease;
-  flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
-  scrollbar-width:none;
-}
-.alf-row::-webkit-scrollbar { display:none; }
-.alf-row:hover   { background-color:rgba(0,106,97,0.04); border-left-color:#006a61; }
-.alf-row--even   { background-color:#f6fafe; }
-.alf-ts          { font-size:11px; color:#707974; flex-shrink:0; white-space:nowrap; font-variant-numeric:tabular-nums; }
-.alf-actor       { font-size:11px; font-weight:600; color:#003527; max-width:72px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; }
-.alf-sep         { color:#bfc9c3; font-size:11px; flex-shrink:0; }
-.alf-id          { font-size:11px; font-weight:700; color:#006a61; letter-spacing:0.03em; flex-shrink:0; white-space:nowrap; }
-.alf-fase-badge  {
-  display:inline-flex; align-items:center; padding:1px 6px;
-  font-size:10px; font-weight:600; letter-spacing:0.04em;
-  border:1px solid; border-radius:0.25rem; flex-shrink:0; white-space:nowrap;
-}
-.fase-kedatangan { color:#006a61; border-color:rgba(0,106,97,0.35); background-color:rgba(0,106,97,0.07); }
-.fase-sembelihan { color:#EF4444; border-color:rgba(239,68,68,0.3); background-color:rgba(239,68,68,0.06); }
-.fase-pengulitan { color:#D97706; border-color:rgba(245,158,11,0.3); background-color:rgba(245,158,11,0.06); }
-.fase-distribusi { color:#6b342d; border-color:rgba(107,52,45,0.3); background-color:rgba(107,52,45,0.06); }
-.fase-default    { color:#404944; border-color:#bfc9c3; background-color:transparent; }
-
-.alf-flow       { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; }
-.alf-status-old { font-size:11px; color:#707974; text-decoration:line-through; white-space:nowrap; }
-.alf-arrow      { font-size:11px; color:#bfc9c3; }
-.alf-status-new { font-size:11px; font-weight:700; white-space:nowrap; }
-.log-status-selesai { color:#16A34A; }
-.log-status-proses  { color:#D97706; }
-.log-status-belum   { color:#EF4444; }
-
-.alf-source-badge {
-  display:inline-flex; align-items:center; padding:1px 6px;
-  font-size:10px; font-weight:600; letter-spacing:0.04em;
-  border:1px solid; border-radius:9999px;
-  flex-shrink:0; white-space:nowrap;
-}
-.badge-pwa   { color:#D97706; border-color:rgba(245,158,11,0.35); background-color:rgba(245,158,11,0.08); }
-.badge-auto  { color:#006a61; border-color:rgba(0,106,97,0.35); background-color:rgba(0,106,97,0.08); }
-.badge-admin { color:#404944; border-color:#bfc9c3; background-color:transparent; }
-
-.alf-footer {
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:5px 14px; background-color:#f6fafe; border-top:1px solid #E2E8F0; flex-shrink:0;
-}
-.alf-footer-left, .alf-footer-right { display:flex; align-items:center; gap:8px; }
-.alf-footer-text            { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#707974; }
-.alf-footer-text--count     { font-weight:600; color:#003527; }
-.alf-footer-text--capacity  { font-weight:700; color:#EF4444; }
-.alf-footer-text--warn      { color:#D97706; animation:alf-fade 1.2s ease-in-out infinite; }
-.alf-footer-text--paused    { color:#D97706; font-weight:500; }
-.alf-footer-text--auto      { color:#16A34A; font-weight:500; }
-
-/* ── Footer ─────────────────────────────────────────────────────────────── */
-.eg-footer {
-  display:flex; align-items:center; gap:10px; padding:0 32px; min-height:36px;
-  background-color:#022C22; border-top:1px solid #064e3b; flex-shrink:0;
-}
-.eg-footer-brand  { font-size:12px; font-weight:700; color:#95d3ba; white-space:nowrap; letter-spacing:0.03em; }
-.eg-footer-sep    { color:#406355; font-size:12px; }
-.eg-footer-info   { font-size:11px; color:#80bea6; white-space:nowrap; }
-.eg-footer-hidden { font-size:11px; color:#fca5a5; display:flex; align-items:center; gap:4px; white-space:nowrap; }
-.eg-footer-right  { margin-left:auto; display:flex; align-items:center; gap:12px; flex-shrink:0; }
-.eg-footer-clear-btn {
-  font-family:'Inter',sans-serif; font-size:11px; font-weight:600; color:#95d3ba;
-  border:1px solid rgba(149,211,186,0.35); border-radius:9999px;
-  background:transparent; padding:2px 10px; cursor:pointer; transition:all 0.15s ease;
-}
-.eg-footer-clear-btn:hover { background-color:rgba(149,211,186,0.12); border-color:#95d3ba; }
-
-/* ── Scrollbar global ────────────────────────────────────────────────────── */
-::-webkit-scrollbar       { width:5px; height:5px; }
-::-webkit-scrollbar-track { background:#f0f4f8; }
-::-webkit-scrollbar-thumb { background:#bfc9c3; border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:#707974; }
-
-@media print {
-  .eg-root { background:white !important; color:black !important; }
-  .eg-header { background:white !important; border-bottom-color:#ccc !important; }
-  .eg-header-title, .eg-header-subtitle { color:black !important; }
+@media (prefers-reduced-motion: reduce) {
+  .qc-skel::after { animation: none; }
 }
 </style>

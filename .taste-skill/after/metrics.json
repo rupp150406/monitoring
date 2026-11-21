@@ -1,0 +1,78 @@
+{
+  "typography": {
+    "h1": {
+      "fontFamily": "\"Plus Jakarta Sans\", sans-serif",
+      "fontSize": "14px",
+      "fontWeight": "800",
+      "lineHeight": "20px",
+      "color": "rgb(15, 23, 42)",
+      "letterSpacing": "-0.35px"
+    },
+    "cardTitle": {
+      "fontFamily": "\"JetBrains Mono\", monospace",
+      "fontSize": "12px",
+      "fontWeight": "600",
+      "color": "rgb(100, 116, 139)"
+    },
+    "percentageNumber": {
+      "fontSize": "38px",
+      "fontWeight": "800",
+      "letterSpacing": "-0.95px"
+    },
+    "tableHeader": {
+      "fontSize": "10px",
+      "fontWeight": "700",
+      "textTransform": "uppercase",
+      "color": "rgb(100, 116, 139)"
+    },
+    "tableCell": {
+      "fontSize": "11px",
+      "color": "rgb(148, 163, 184)"
+    },
+    "searchInput": {
+      "fontSize": "12px",
+      "fontFamily": "\"JetBrains Mono\", monospace",
+      "color": "rgb(30, 41, 59)"
+    }
+  },
+  "colors": {
+    "bodyBg": "rgb(244, 245, 249)",
+    "topbarBg": "rgb(255, 255, 255)",
+    "deckCardBg": "rgb(255, 255, 255)",
+    "deckCardBorder": "1px solid rgb(241, 245, 249)",
+    "deckCardShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.02) 0px 4px 20px 0px",
+    "filterBarBg": "rgb(255, 255, 255)",
+    "tableWrapBg": "rgb(255, 255, 255)",
+    "asideBg": "rgb(255, 255, 255)",
+    "footerBg": "rgb(255, 255, 255)",
+    "btnAccentBg": "rgb(255, 91, 53)",
+    "btnAccentColor": "rgb(255, 255, 255)"
+  },
+  "frame": {
+    "topbarHeight": 64,
+    "deckHeight": 191,
+    "filterBarHeight": 52,
+    "mainHeight": 541,
+    "asideWidth": 440,
+    "footerHeight": 38,
+    "deckCardRadius": "16px",
+    "filterBarRadius": "16px",
+    "tableWrapRadius": "16px",
+    "asideRadius": "16px"
+  },
+  "glassmorphism": {
+    "topbarBackdrop": "none",
+    "deckCardBackdrop": "none",
+    "filterBarBackdrop": "none",
+    "tableWrapBackdrop": "none",
+    "asideBackdrop": "none",
+    "footerBackdrop": "none"
+  },
+  "counts": {
+    "deckCards": 5,
+    "tableRows": 20,
+    "buttons": 239,
+    "logItems": 101,
+    "domNodes": 3169
+  }
+}

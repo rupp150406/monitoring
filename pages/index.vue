@@ -632,8 +632,7 @@ onUnmounted(() => {
 <style>
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 html, body {
-  width: 100% !important; height: 100% !important;
-  margin: 0 !important; padding: 0 !important; overflow: hidden !important;
+  margin: 0; padding: 0;
   font-family: 'Inter', sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; }

@@ -1,0 +1,1127 @@
+<script setup lang="ts">
+// ./pages/admin.vue
+import { ref, reactive, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
+import * as XLSX from 'xlsx';
+import { useQurbanRealtime, useActivityLog, use12ValueScore } from '@/composables/useQurbanEngine';
+import type { GrupHewan, Database, ActivityLog } from '@/composables/useQurbanEngine';
+
+// ─── Route guard — requires admin-auth middleware ────────────────────────────
+definePageMeta({ middleware: 'admin-auth' });
+
+useHead({
+  title: 'Qurban Command Center | Ahsantv',
+  htmlAttrs: {
+    style: 'height: 100% !important; overflow: hidden !important;',
+  },
+  bodyAttrs: {
+    style: 'height: 100% !important; overflow: hidden !important; background-color: #030712 !important; margin: 0 !important; padding: 0 !important;',
+  },
+  meta: [
+    { name: 'theme-color', content: '#030712' },
+    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+  ],
+  link: [
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@400;500;600;700;800&display=swap' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200' },
+    { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css' },
+  ],
+});
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Fase = 'kedatangan' | 'sembelihan' | 'pengulitan' | 'pengemasan';
+type QuickFilter = 'all' | 'belum' | 'proses' | 'selesai';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const supabase      = useSupabaseClient<Database>();
+const ROWS_PER_PAGE = 10;
+const AUTO_INTERVAL = 6;
+
+const STATUS_COLUMNS = [
+  { field: 'status_kedatangan', label: '1. KEDATANGAN', options: ['Belum', 'Diterima'] },
+  { field: 'status_sembelihan', label: '2. SEMBELIHAN', options: ['Belum', 'Selesai']  },
+  { field: 'status_pengulitan', label: '3. PENGULITAN', options: ['Belum', 'Proses', 'Selesai'] },
+  { field: 'status_pengemasan', label: '4. DISTRIBUSI', options: ['Belum', 'Proses', 'Selesai'] },
+];
+
+const JENIS_OPTIONS: string[] = ['Sapi', 'Kambing', 'Domba'];
+
+const QUICK_FILTERS: Array<{ k: QuickFilter; l: string }> = [
+  { k: 'all',     l: 'SEMUA' },
+  { k: 'belum',   l: 'BELUM' },
+  { k: 'proses',  l: 'PROSES' },
+  { k: 'selesai', l: 'SELESAI' },
+];
+
+const FASE_MAP: Record<string, Fase> = {
+  status_kedatangan: 'kedatangan',
+  status_sembelihan: 'sembelihan',
+  status_pengulitan: 'pengulitan',
+  status_pengemasan: 'pengemasan',
+};
+
+// Phase cards shown in the top deck (order = display order)
+const PHASE_DECK = [
+  { key: 'kedatangan', label: '01. KEDATANGAN', icon: 'fas fa-truck-ramp-box', target: 'HARI INI',    hasProses: false },
+  { key: 'sembelihan', label: '02. SEMBELIHAN', icon: 'fas fa-scissors',       target: 'TARGET 100%', hasProses: false },
+  { key: 'pengulitan', label: '03. PENGULITAN', icon: 'fas fa-box',            target: 'TARGET 100%', hasProses: true  },
+  { key: 'pengemasan', label: '04. DISTRIBUSI', icon: 'fas fa-box-open',       target: 'TARGET 100%', hasProses: true  },
+] as const;
+
+// Banner color + Material Symbol per phase in the audit log
+const FASE_STYLE: Record<string, { icon: string; color: string; border: string; text: string }> = {
+  kedatangan: { icon: 'local_shipping', color: '#102A45', border: '#1E4976', text: '#60A5FA' },
+  sembelihan: { icon: 'content_cut',    color: '#0D3328', border: '#145A45', text: '#34D399' },
+  pengulitan: { icon: 'inventory_2',    color: '#3B230B', border: '#693E10', text: '#FBBF24' },
+  pengemasan: { icon: 'unarchive',      color: '#241D45', border: '#433478', text: '#A78BFA' },
+};
+
+// ─── Glassmorphism Styling & Utility Constants ────────────────────────────────
+const BTN_ACCENT =
+  'flex cursor-pointer items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-950 transition-all duration-150 hover:from-emerald-400 hover:to-teal-300 active:scale-[0.98] shadow-[0_4px_16px_rgba(52,211,153,0.3),inset_0_1px_0_rgba(255,255,255,0.3)]';
+
+const BTN_SECONDARY =
+  'flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.06] backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-white/80 transition-all duration-150 hover:bg-white/[0.1] hover:border-white/[0.2] hover:text-white active:scale-[0.98]';
+
+const CHIP_ACTIVE =
+  'rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 font-bold uppercase tracking-wider text-slate-950 shadow-[0_2px_12px_rgba(52,211,153,0.35)]';
+
+const SCROLLBAR_TABLE =
+  '[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-black/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb:hover]:bg-white/40';
+
+const SCROLLBAR_FEED =
+  '[&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-black/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb:hover]:bg-white/40';
+
+// Glassmorphism status pill states — translucent jewel tones
+const PILL_ACTIVE: Record<string, string> = {
+  belum:    'border border-rose-400/40 bg-rose-500/25 text-rose-200 font-bold',
+  proses:   'border border-amber-400/40 bg-amber-500/25 text-amber-200 font-bold',
+  selesai:  'border border-emerald-400/40 bg-emerald-500/25 text-emerald-200 font-bold',
+  diterima: 'border border-teal-400/40 bg-teal-500/25 text-teal-200 font-bold',
+};
+
+// Text tone for the from → to flow in the audit log
+const TONE_CLASS: Record<'belum' | 'proses' | 'selesai', string> = {
+  belum:   'text-rose-400',
+  proses:  'text-amber-400',
+  selesai: 'text-emerald-400',
+};
+
+const RIPPLE_CLASS =
+  'pointer-events-none absolute rounded-full bg-white/20 animate-[qc-ripple_0.35s_ease-out_forwards]';
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+const toastMsg     = ref('');
+const toastVisible = ref(false);
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(msg: string): void {
+  toastMsg.value     = msg;
+  toastVisible.value = true;
+  if (_toastTimer !== null) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { toastVisible.value = false; }, 2400);
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+const {
+  liveLogs, isLoadingHistory,
+  subscribe: subscribeLogs, unsubscribe: unsubscribeLogs,
+  clearView, loadRecentHistory, insertLog,
+} = useActivityLog();
+
+const alfLogs      = computed<readonly ActivityLog[]>(() => liveLogs.value);
+const alfIsLoading = computed<boolean>(() => isLoadingHistory.value);
+const entryCount   = computed<number>(() => alfLogs.value.length);
+
+const isPaused = ref(false);
+const feedEl   = ref<HTMLElement | null>(null);
+let _userScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function onFeedScroll(): void {
+  if (!feedEl.value) return;
+  if (feedEl.value.scrollTop > 32) isPaused.value = true;
+  if (_userScrollTimeout !== null) clearTimeout(_userScrollTimeout);
+  _userScrollTimeout = setTimeout(() => {
+    if (feedEl.value && feedEl.value.scrollTop <= 4) isPaused.value = false;
+  }, 500);
+}
+
+watch(() => alfLogs.value.length, async () => {
+  if (isPaused.value || !feedEl.value) return;
+  await nextTick();
+  feedEl.value.scrollTop = 0;
+});
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function faseLabel(fase: string): string {
+  const map: Record<string, string> = {
+    kedatangan: 'KEDATANGAN', sembelihan: 'SEMBELIHAN',
+    pengulitan: 'PENGULITAN', pengemasan: 'DISTRIBUSI',
+  };
+  return map[fase] ?? fase.toUpperCase();
+}
+
+function faseStyle(fase: string) {
+  return FASE_STYLE[fase] ?? { icon: 'bolt', color: '#1C2024', border: '#2D3239', text: '#10B981' };
+}
+
+function statusTone(status: string): 'belum' | 'proses' | 'selesai' {
+  const s = (status ?? '').toLowerCase();
+  if (s === 'selesai' || s === 'diterima') return 'selesai';
+  if (s === 'proses') return 'proses';
+  return 'belum';
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const tableKey = ref(0);
+
+const { data: dataGrup, refresh } = await useAsyncData('admin_grup_hewan', async () => {
+  const { data, error } = await supabase
+    .from('grup_hewan')
+    .select('*, sohibul_qurban(*)')
+    .order('id_grup', { ascending: true });
+  if (error) { console.error('[Admin] Initial fetch error:', error); return [] as GrupHewan[]; }
+  return (data ?? []) as GrupHewan[];
+});
+
+const scoreInput = computed<GrupHewan[]>(() => dataGrup.value ?? []);
+const { globalPercentage, phaseMetrics, totalScore, maxTotalScore } = use12ValueScore(scoreInput);
+const { connect: connectRealtime, disconnect: disconnectRealtime, isSyncing } = useQurbanRealtime(dataGrup, {
+  channelSuffix: 'admin',
+  onInsert: () => refresh(),
+  onConnectionLost: () => refresh(),
+});
+
+// ─── Device detection ─────────────────────────────────────────────────────────
+const isMobileDevice = ref(false);
+
+function detectDevice(): void {
+  if (typeof window === 'undefined') return;
+  isMobileDevice.value = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+// ─── TV Page sync ─────────────────────────────────────────────────────────────
+const activePage  = ref(1);
+const countdown   = ref(AUTO_INTERVAL);
+let masterTimer: ReturnType<typeof setInterval> | null = null;
+
+const pageSyncChannel = supabase.channel('page-sync-channel');
+
+function broadcastPageChanged(page: number): void {
+  pageSyncChannel.send({ type: 'broadcast', event: 'PAGE_CHANGED', payload: { page } });
+}
+function broadcastManualPageChange(page: number): void {
+  pageSyncChannel.send({ type: 'broadcast', event: 'MANUAL_PAGE_CHANGE', payload: { page } });
+}
+function broadcastHiddenGroups(): void {
+  const total  = dataGrup.value?.length ?? 0;
+  const hidden = hiddenGroupIds.value.length;
+  pageSyncChannel.send({
+    type: 'broadcast', event: 'update-hidden-groups',
+    payload: { hiddenIds: hiddenGroupIds.value, totalVisible: total - hidden, totalGroups: total },
+  });
+}
+function triggerRemoteReload(): void {
+  pageSyncChannel.send({ type: 'broadcast', event: 'remote-reload', payload: { ts: Date.now() } });
+}
+
+// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+function _readLocalStorage(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function _writeLocalStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(key, value); } catch { /* noop */ }
+}
+
+// ─── Hidden groups ────────────────────────────────────────────────────
+const hiddenGroupIds = ref<string[]>([]);
+
+function loadHiddenGroupsFromStorage(): void {
+  const raw = _readLocalStorage('qurban_hidden_group_ids');
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) hiddenGroupIds.value = parsed.map(String);
+  } catch { console.warn('[Admin] Could not parse qurban_hidden_group_ids from localStorage.'); }
+}
+
+function toggleHideGroup(idGrup: string): void {
+  const id  = String(idGrup);
+  const idx = hiddenGroupIds.value.indexOf(id);
+  if (idx !== -1) hiddenGroupIds.value.splice(idx, 1);
+  else hiddenGroupIds.value.push(id);
+  _writeLocalStorage('qurban_hidden_group_ids', JSON.stringify(hiddenGroupIds.value));
+  broadcastHiddenGroups();
+}
+
+function onToggleHide(idGrup: string): void {
+  toggleHideGroup(idGrup);
+  showToast(isGroupHidden(idGrup)
+    ? `${idGrup} disembunyikan dari TV monitor.`
+    : `${idGrup} ditampilkan kembali di TV monitor.`);
+}
+
+function clearAllHidden(): void {
+  hiddenGroupIds.value = [];
+  _writeLocalStorage('qurban_hidden_group_ids', JSON.stringify([]));
+  broadcastHiddenGroups();
+  showToast('Semua kelompok qurban kembali ditampilkan.');
+}
+
+function isGroupHidden(idGrup: string): boolean {
+  return hiddenGroupIds.value.includes(String(idGrup));
+}
+
+// ─── TV pagination (chunked by grup, ROWS_PER_PAGE = 10) ─────────────────────
+const chunkedGrup = computed<GrupHewan[][]>(() => {
+  const visible = (dataGrup.value ?? []).filter(
+    (g) => !hiddenGroupIds.value.includes(String(g.id_grup ?? ''))
+  );
+  const pages: GrupHewan[][] = [];
+  for (let i = 0; i < visible.length; i += ROWS_PER_PAGE) {
+    pages.push(visible.slice(i, i + ROWS_PER_PAGE));
+  }
+  return pages.length > 0 ? pages : [[]];
+});
+
+const totalPages = computed<number>(() => chunkedGrup.value.length || 1);
+
+watch(totalPages, (newTotal) => {
+  if (activePage.value > newTotal) activePage.value = Math.max(1, newTotal);
+});
+
+function setActivePage(p: number): void {
+  const target = Math.max(1, Math.min(p, totalPages.value));
+  if (isMobileDevice.value) {
+    activePage.value = target;
+    broadcastManualPageChange(target);
+  } else {
+    activePage.value = target;
+    countdown.value  = AUTO_INTERVAL;
+    restartMasterInterval();
+    broadcastPageChanged(target);
+  }
+}
+
+function onPageClick(p: number): void {
+  setActivePage(p);
+  showToast(`Menampilkan TV Layar Halaman ${activePage.value}`);
+}
+
+function startMasterInterval(): void {
+  if (isMobileDevice.value) return;
+  if (masterTimer !== null) return;
+  masterTimer = setInterval(() => {
+    countdown.value--;
+    if (countdown.value <= 0) {
+      activePage.value = activePage.value >= totalPages.value ? 1 : activePage.value + 1;
+      broadcastPageChanged(activePage.value);
+      countdown.value = AUTO_INTERVAL;
+    }
+  }, 1000);
+}
+function stopMasterInterval(): void {
+  if (masterTimer !== null) { clearInterval(masterTimer); masterTimer = null; }
+}
+function restartMasterInterval(): void {
+  stopMasterInterval();
+  countdown.value = AUTO_INTERVAL;
+  startMasterInterval();
+}
+
+// ─── Search & filter ──────────────────────────────────────────────────────────
+const searchQuery = ref('');
+const activeQuick = ref<QuickFilter>('all');
+const filterState = ref<{
+  jenisHewan: string[]; kedatangan: string[]; sembelihan: string[];
+  pengulitan: string[]; pengemasan: string[];
+}>({ jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: [], pengemasan: [] });
+
+const filteredRows = computed<GrupHewan[]>(() => {
+  if (!dataGrup.value) return [];
+  let rows: GrupHewan[] = dataGrup.value;
+  const q = searchQuery.value.trim().toLowerCase();
+  if (q) {
+    rows = rows.filter((r) =>
+      r.id_grup?.toLowerCase().includes(q) ||
+      r.jenis_hewan?.toLowerCase().includes(q) ||
+      r.label_tampilan?.toLowerCase().includes(q) ||
+      r.sohibul_qurban?.some((s: { nama?: string }) => s.nama?.toLowerCase().includes(q))
+    );
+  }
+  if (filterState.value.jenisHewan.length) rows = rows.filter((r) => filterState.value.jenisHewan.includes(r.jenis_hewan ?? ''));
+  if (filterState.value.kedatangan.length) rows = rows.filter((r) => filterState.value.kedatangan.includes(r.status_kedatangan ?? 'Belum'));
+  if (filterState.value.sembelihan.length) rows = rows.filter((r) => filterState.value.sembelihan.includes(r.status_sembelihan ?? 'Belum'));
+  if (filterState.value.pengulitan.length) rows = rows.filter((r) => filterState.value.pengulitan.includes(r.status_pengulitan ?? 'Belum'));
+  if (filterState.value.pengemasan.length) rows = rows.filter((r) => filterState.value.pengemasan.includes(r.status_pengemasan ?? 'Belum'));
+  return rows;
+});
+
+const filteredCount = computed<number>(() => filteredRows.value.length);
+
+function resetFilters(): void {
+  filterState.value = { jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: [], pengemasan: [] };
+  searchQuery.value = '';
+  activeQuick.value = 'all';
+}
+
+function onResetFilters(): void {
+  resetFilters();
+  showToast('Filter dikembalikan ke default');
+}
+
+function applyQuickFilter(type: QuickFilter): void {
+  activeQuick.value = type;
+  switch (type) {
+    case 'all':    resetFilters(); break;
+    case 'belum':  filterState.value = { jenisHewan: [], kedatangan: ['Belum'], sembelihan: ['Belum'], pengulitan: ['Belum'], pengemasan: ['Belum'] }; break;
+    case 'proses': filterState.value = { jenisHewan: [], kedatangan: [], sembelihan: [], pengulitan: ['Proses'], pengemasan: ['Proses'] }; break;
+    case 'selesai':filterState.value = { jenisHewan: [], kedatangan: ['Diterima'], sembelihan: ['Selesai'], pengulitan: ['Selesai'], pengemasan: ['Selesai'] }; break;
+  }
+}
+
+function toggleFilter(category: keyof typeof filterState.value, value: string): void {
+  const arr = filterState.value[category];
+  const idx = arr.indexOf(value);
+  if (idx !== -1) arr.splice(idx, 1); else arr.push(value);
+}
+
+// ─── Phase stats (top deck) ───────────────────────────────────────────────────
+const stats = computed(() => {
+  const m = phaseMetrics.value as Record<string, { belum: number; proses: number; selesai: number }> | null;
+  return PHASE_DECK.map((p) => {
+    const d     = m?.[p.key] ?? { belum: 0, proses: 0, selesai: 0 };
+    const total = d.belum + d.proses + d.selesai;
+    return { ...p, belum: d.belum, proses: d.proses, selesai: d.selesai, total, pct: total ? Math.round((d.selesai / total) * 100) : 0 };
+  });
+});
+
+// Accordion state per card key — includes 'master'
+const ALL_DECK_KEYS = [...PHASE_DECK.map((p) => p.key), 'master'];
+const openAcc = reactive<Record<string, boolean>>({});
+function toggleAcc(key: string): void {
+  const targetState = !openAcc[key];
+  for (const k of ALL_DECK_KEYS) {
+    openAcc[k] = targetState;
+  }
+}
+
+// ─── Status mutation ──────────────────────────────────────────────────────────
+const isMutatingId = ref('');
+
+function handleStatusClick(event: MouseEvent, idGrup: string, kolom: string, statusBaru: string): void {
+  const btn    = event.currentTarget as HTMLElement;
+  const ripple = document.createElement('span');
+  ripple.className = RIPPLE_CLASS;
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  ripple.style.width  = `${size}px`;
+  ripple.style.height = `${size}px`;
+  ripple.style.left   = `${event.clientX - rect.left - size / 2}px`;
+  ripple.style.top    = `${event.clientY - rect.top  - size / 2}px`;
+  btn.appendChild(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+  updateStatus(idGrup, kolom, statusBaru);
+}
+
+async function updateStatus(idGrup: string, kolom: string, statusBaru: string): Promise<void> {
+  const lockKey = `${idGrup}:${kolom}`;
+  if (isMutatingId.value === lockKey) {
+    console.warn(`[Admin] updateStatus blocked — mutation in-flight for ${lockKey}`);
+    return;
+  }
+  isMutatingId.value = lockKey;
+
+  const row = dataGrup.value?.find((r) => String(r.id_grup) === String(idGrup));
+  if (!row) { isMutatingId.value = ''; return; }
+
+  const statusLama: string = (row as unknown as Record<string, unknown>)[kolom] as string ?? 'Belum';
+  if (statusLama === statusBaru) { isMutatingId.value = ''; return; }
+
+  (row as unknown as Record<string, unknown>)[kolom] = statusBaru;
+
+  try {
+    const { error } = await supabase
+      .from('grup_hewan')
+      .update({ [kolom]: statusBaru, updated_by: 'Admin Dashboard' })
+      .eq('id_grup', idGrup);
+
+    if (error) {
+      console.error('[Admin] updateStatus DB error — rolling back:', error);
+      (row as unknown as Record<string, unknown>)[kolom] = statusLama;
+      tableKey.value++;
+      return;
+    }
+
+    await insertLog({
+      id_grup:      idGrup,
+      actor_id:     'admin-dashboard',
+      actor_name:   'Admin Dashboard',
+      fase:         FASE_MAP[kolom] ?? 'kedatangan',
+      status_lama:  statusLama,
+      status_baru:  statusBaru,
+      action_source:'manual',
+      metadata:     { timestamp_local: new Date().toISOString(), source: 'admin-dashboard', kolom },
+    });
+
+    await refresh();
+    tableKey.value++;
+    showToast(`Updated ${idGrup} → ${statusBaru}`);
+  } catch (err) {
+    console.error('[Admin] updateStatus unexpected error:', err);
+    (row as unknown as Record<string, unknown>)[kolom] = statusLama;
+    tableKey.value++;
+  } finally {
+    isMutatingId.value = '';
+  }
+}
+
+function isMutating(idGrup: string, kolom: string): boolean {
+  return isMutatingId.value === `${idGrup}:${kolom}`;
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function exportToExcel(): void {
+  const exportRows: Array<Record<string, unknown>> = [];
+  let noUrut = 1;
+  const tsCetak = new Date().toLocaleString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  });
+
+  filteredRows.value.forEach((grup) => {
+    const allSohibulNames = (grup.sohibul_qurban ?? [])
+      .map((s: { nama?: string }) => s.nama ?? '—').join('; ') || '(Belum Ada Anggota)';
+    const baseFields = {
+      'ID Hewan':          grup.id_grup ?? '—',
+      'Jenis Hewan':       grup.jenis_hewan ?? '—',
+      'Label Grup':        grup.label_tampilan ?? '—',
+      'Shohibul (Semua)':  allSohibulNames,
+      'Status Kedatangan': grup.status_kedatangan ?? 'Belum',
+      'Status Sembelih':   grup.status_sembelihan ?? 'Belum',
+      'Status Pengulitan': grup.status_pengulitan ?? 'Belum',
+      'Status Distribusi': grup.status_pengemasan ?? 'Belum',
+      'Timer Aktif':       grup.is_timer_active ? 'YA' : 'TIDAK',
+      'QR Code String':    grup.qr_code_string ?? '—',
+      'Updated By':        grup.updated_by ?? '—',
+      'Dicetak Pada':      tsCetak,
+    };
+    const sohibulList = grup.sohibul_qurban ?? [];
+    if (sohibulList.length === 0) {
+      exportRows.push({ No: noUrut++, 'Nama Shohibul Qurban': '(Belum Ada Anggota)', ...baseFields });
+    } else {
+      sohibulList.forEach((s: { nama?: string }) => {
+        exportRows.push({ No: noUrut++, 'Nama Shohibul Qurban': s.nama || '—', ...baseFields });
+      });
+    }
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(exportRows);
+  worksheet['!cols'] = [
+    { wch: 4 }, { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
+    { wch: 40 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+    { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 22 },
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Manifes Shohibul Qurban');
+  const tglCetak = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Manifes_Shohibul_Qurban_${tglCetak}.xlsx`);
+}
+
+function handleExport(): void {
+  exportToExcel();
+  showToast('Export data Excel siap diunduh.');
+}
+
+function handleSyncMonitor(): void {
+  triggerRemoteReload();
+  showToast('Perintah sinkronisasi ke TV Monitor dikirim.');
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function statusOf(row: GrupHewan, field: string): string {
+  return ((row as unknown as Record<string, unknown>)[field] as string | null | undefined) ?? 'Belum';
+}
+
+function animalIcon(jenis: string | null | undefined): string {
+  const j = (jenis ?? '').toLowerCase();
+  if (j === 'sapi')              return 'fas fa-cow';
+  if (j === 'kambing' || j === 'domba') return 'fas fa-horse-head';
+  return 'fas fa-paw';
+}
+
+function porsiLabel(grup: GrupHewan): string {
+  const n = grup.sohibul_qurban?.length ?? 0;
+  return `${grup.jenis_hewan ?? ''}${n > 1 ? ` · ${n} Porsi` : ' · Mandiri'}`;
+}
+
+function rowScore(grup: GrupHewan): number {
+  const w: Record<string, number> = { Belum: 0, Proses: 1, Selesai: 3, Diterima: 3 };
+  return (
+    (w[grup.status_kedatangan ?? 'Belum'] ?? 0) +
+    (w[grup.status_sembelihan ?? 'Belum'] ?? 0) +
+    (w[grup.status_pengulitan ?? 'Belum'] ?? 0) +
+    (w[grup.status_pengemasan ?? 'Belum'] ?? 0)
+  );
+}
+
+function rowScoreBarWidth(score: number): string {
+  return `${Math.round((score / 12) * 100)}%`;
+}
+
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
+onMounted(() => {
+  detectDevice();
+  loadHiddenGroupsFromStorage();
+  connectRealtime();
+  loadRecentHistory().then(() => { subscribeLogs(); });
+
+  pageSyncChannel
+    .on('broadcast', { event: 'PAGE_CHANGED' }, (msg) => {
+      if (!isMobileDevice.value) return;
+      const target = Number(msg?.payload?.page);
+      if (!isNaN(target) && target >= 1 && target <= totalPages.value) activePage.value = target;
+    })
+    .on('broadcast', { event: 'MANUAL_PAGE_CHANGE' }, (msg) => {
+      if (isMobileDevice.value) return;
+      const target = Number(msg?.payload?.page);
+      if (!isNaN(target) && target >= 1 && target <= totalPages.value) {
+        activePage.value = target;
+        restartMasterInterval();
+        broadcastPageChanged(activePage.value);
+      }
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        startMasterInterval();
+        console.info('[Admin] page-sync-channel subscribed. Auto-timer started.');
+      }
+    });
+});
+
+onUnmounted(() => {
+  stopMasterInterval();
+  disconnectRealtime();
+  unsubscribeLogs();
+  supabase.removeChannel(pageSyncChannel);
+  if (_toastTimer !== null) clearTimeout(_toastTimer);
+  if (_userScrollTimeout !== null) clearTimeout(_userScrollTimeout);
+});
+</script>
+
+<template>
+  <div
+    class="relative flex h-screen h-dvh max-h-screen max-h-dvh w-full flex-col overflow-hidden bg-[#030712] text-white antialiased [font-family:'Plus_Jakarta_Sans','Raleway',sans-serif] [&_*]:outline-none max-lg:h-auto max-lg:min-h-screen max-lg:max-h-none max-lg:overflow-y-auto"
+  >
+    <!-- ── AMBIENT LIGHTING MESH (glassmorphism backdrop) ── -->
+    <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+      <div class="absolute -top-32 -left-32 h-[500px] w-[500px] rounded-full bg-emerald-500/[0.12] blur-[120px]"></div>
+      <div class="absolute top-1/3 -right-40 h-[420px] w-[420px] rounded-full bg-teal-600/[0.09] blur-[120px]"></div>
+      <div class="absolute -bottom-24 left-1/3 h-[380px] w-[380px] rounded-full bg-amber-500/[0.08] blur-[120px]"></div>
+    </div>
+
+    <!-- ── TOP NAVIGATION BAR (GLASS HEADER) ── -->
+    <header
+      class="relative z-30 flex h-16 shrink-0 items-center justify-between border-b border-white/[0.08] bg-slate-950/60 px-6 backdrop-blur-2xl"
+    >
+      <div class="flex items-center gap-3">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-500/10 text-sm text-emerald-300 backdrop-blur-md">
+          <i class="fas fa-kaaba"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-extrabold tracking-tight text-white">AHSANTV OPERASIONAL QURBAN</h1>
+            <span class="rounded-md border border-white/[0.1] bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white/60 backdrop-blur-md">1446H</span>
+          </div>
+          <p class="font-mono text-[11px] text-white/40">Sistem Manajemen Terpadu &amp; Audit Log Operasional</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-[11px] font-medium text-white/70 backdrop-blur-md">
+          <span
+            class="h-1.5 w-1.5 shrink-0 rounded-full"
+            :class="isSyncing ? 'animate-pulse bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]' : 'bg-rose-400'"
+          ></span>
+          {{ isSyncing ? 'SYNC: AKTIF' : 'SYNC: OFFLINE' }}
+        </span>
+        <span class="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-[11px] font-medium text-white/50 backdrop-blur-md">
+          <i class="fas fa-shield-halved text-emerald-400/70"></i> AUDIT LOG VERIFIED
+        </span>
+      </div>
+    </header>
+
+    <!-- ── PHASE PROGRESS DECK (GLASS TILES) ── -->
+    <section
+      class="relative z-10 grid shrink-0 grid-cols-[repeat(4,1fr)_320px] items-start gap-3.5 px-8 pt-4 pb-2 max-lg:grid-cols-[repeat(2,1fr)_1fr] max-md:grid-cols-1 max-md:px-4 max-md:py-3"
+    >
+      <div
+        v-for="stat in stats" :key="stat.key"
+        class="group relative flex flex-col rounded-[20px] border border-white/[0.08] bg-white/[0.04] p-4 backdrop-blur-2xl transition-all duration-200 hover:-translate-y-1 hover:border-white/[0.18] hover:bg-white/[0.07] hover:shadow-[0_16px_40px_rgba(0,0,0,0.5),0_0_24px_rgba(52,211,153,0.12)] shadow-[0_8px_32px_rgba(0,0,0,0.37),inset_0_1px_0_rgba(255,255,255,0.08)]"
+      >
+        <div class="mb-2 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i :class="stat.icon" class="text-xs text-emerald-400/70"></i>
+            <h3 class="text-xs font-semibold tracking-wider text-white/80 uppercase [font-family:'JetBrains_Mono',monospace]">{{ stat.label }}</h3>
+          </div>
+          <span class="text-[10px] font-semibold text-white/40 uppercase [font-family:'JetBrains_Mono',monospace]">{{ stat.target }}</span>
+        </div>
+
+        <div class="mb-2.5 flex items-baseline gap-1">
+          <span class="text-[38px] font-black tracking-[-0.03em] tabular-nums text-white [font-family:'Plus_Jakarta_Sans','Raleway',sans-serif]">{{ stat.pct }}</span>
+          <span class="text-xs font-semibold text-white/40 [font-family:'JetBrains_Mono',monospace]">%</span>
+        </div>
+
+        <!-- Glass progress bar -->
+        <div class="relative mb-3 h-1.5 w-full overflow-hidden rounded-full bg-black/40 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-white/[0.06]" role="progressbar" :aria-valuenow="stat.pct" aria-valuemin="0" aria-valuemax="100">
+          <div
+            class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(52,211,153,0.5)] transition-[width] duration-500 ease-out"
+            :style="{ width: stat.pct + '%' }"
+          ></div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2 text-[11px]">
+          <span class="text-[10px] text-white/40 uppercase [font-family:'JetBrains_Mono',monospace]">{{ stat.selesai }} / {{ stat.total }} GRUP</span>
+          <button
+            class="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-white/50 transition-colors duration-100 hover:text-emerald-300 [font-family:'JetBrains_Mono',monospace]"
+            @click="toggleAcc(stat.key)"
+          >{{ openAcc[stat.key] ? 'Tutup Detail ▴' : 'Selengkapnya ▾' }}</button>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 overflow-hidden transition-[max-height,opacity,margin-top] duration-200 ease-out"
+          :class="openAcc[stat.key] ? 'mt-2.5 max-h-[140px] pt-1 opacity-100' : 'mt-0 max-h-0 opacity-0'"
+        >
+          <div class="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-black/40 p-1.5 backdrop-blur-md text-center [font-family:'JetBrains_Mono',monospace]">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[9px] font-semibold uppercase text-white/40">Belum</span>
+              <span class="text-xs font-bold text-rose-300">{{ stat.belum }}</span>
+            </div>
+            <div class="flex flex-col gap-0.5 border-x border-white/[0.06]">
+              <span class="text-[9px] font-semibold uppercase text-white/40">{{ stat.hasProses ? 'Proses' : '—' }}</span>
+              <span v-if="stat.hasProses" class="text-xs font-bold text-amber-300">{{ stat.proses }}</span>
+              <span v-else class="text-xs font-bold text-white/20">—</span>
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[9px] font-semibold uppercase text-white/40">Selesai</span>
+              <span class="text-xs font-bold text-emerald-300">{{ stat.selesai }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Master Execution — Amber Glass Summary Card -->
+      <div
+        class="group relative flex flex-col rounded-[20px] border border-amber-400/20 bg-gradient-to-br from-amber-500/[0.09] to-transparent p-4 backdrop-blur-2xl transition-all duration-200 hover:-translate-y-1 hover:border-amber-400/35 hover:shadow-[0_16px_40px_rgba(0,0,0,0.5),0_0_24px_rgba(251,191,36,0.12)] shadow-[0_8px_32px_rgba(0,0,0,0.37),inset_0_1px_0_rgba(255,255,255,0.08)]"
+      >
+        <div class="mb-2 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-chart-pie text-xs text-amber-400"></i>
+            <h3 class="text-xs font-semibold tracking-wider text-white/80 uppercase [font-family:'JetBrains_Mono',monospace]">TOTAL EKSEKUSI</h3>
+          </div>
+          <span class="text-[10px] font-semibold text-amber-400/80 uppercase [font-family:'JetBrains_Mono',monospace]">TARGET 100%</span>
+        </div>
+
+        <div class="mb-2.5 flex items-baseline gap-1">
+          <span class="text-[38px] font-black tracking-[-0.03em] tabular-nums text-white [font-family:'Plus_Jakarta_Sans','Raleway',sans-serif]">{{ globalPercentage }}</span>
+          <span class="text-xs font-semibold text-white/40 [font-family:'JetBrains_Mono',monospace]">%</span>
+        </div>
+
+        <div class="relative mb-3 h-1.5 w-full overflow-hidden rounded-full bg-black/40 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-white/[0.06]" role="progressbar" :aria-valuenow="globalPercentage" aria-valuemin="0" aria-valuemax="100">
+          <div
+            class="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)] transition-[width] duration-500 ease-out"
+            :style="{ width: globalPercentage + '%' }"
+          ></div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2 text-[11px]">
+          <span class="text-[10px] text-amber-400/60 uppercase [font-family:'JetBrains_Mono',monospace]">{{ totalScore }} / {{ maxTotalScore }} PTS</span>
+          <button
+            class="cursor-pointer text-[10px] font-bold uppercase tracking-wider text-white/50 transition-colors duration-100 hover:text-amber-300 [font-family:'JetBrains_Mono',monospace]"
+            @click="toggleAcc('master')"
+          >{{ openAcc['master'] ? 'Tutup Detail ▴' : 'Selengkapnya ▾' }}</button>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 overflow-hidden transition-[max-height,opacity,margin-top] duration-200 ease-out"
+          :class="openAcc['master'] ? 'mt-2.5 max-h-[140px] pt-1 opacity-100' : 'mt-0 max-h-0 opacity-0'"
+        >
+          <div class="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.06] bg-black/40 p-1.5 backdrop-blur-md text-center [font-family:'JetBrains_Mono',monospace]">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[9px] font-semibold uppercase text-white/40">Skor</span>
+              <span class="text-xs font-bold text-amber-300">{{ totalScore }}</span>
+            </div>
+            <div class="flex flex-col gap-0.5 border-x border-white/[0.06]">
+              <span class="text-[9px] font-semibold uppercase text-white/40">Maks</span>
+              <span class="text-xs font-bold text-white/40">{{ maxTotalScore }}</span>
+            </div>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[9px] font-semibold uppercase text-white/40">Grup</span>
+              <span class="text-xs font-bold text-sky-300">{{ dataGrup?.length ?? 0 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CONTROL & FILTER TOOLBAR (GLASS COMMAND STRIP) ── -->
+    <div
+      class="relative z-10 mx-8 mb-3.5 flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-2 backdrop-blur-2xl max-md:flex-col max-md:items-stretch max-md:gap-3 max-md:px-4 max-md:py-3"
+    >
+      <div class="flex flex-1 items-center gap-3 max-md:flex-wrap">
+        <div class="relative w-72 max-md:w-full">
+          <i class="fas fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[11px] text-white/40"></i>
+          <input
+            v-model="searchQuery" type="text"
+            placeholder="Search ID Grup, Shohibul, or Label..."
+            class="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-1.5 pr-3 pl-8 font-mono text-xs text-white/80 backdrop-blur-md transition-all duration-150 placeholder:text-white/30 focus:border-emerald-400/50 focus:bg-white/[0.07] focus:shadow-[0_0_20px_rgba(52,211,153,0.18)] [font-family:'JetBrains_Mono',monospace]"
+          />
+        </div>
+
+        <!-- Quick filter segmented toggles -->
+        <div class="flex items-center gap-1 border-l border-white/[0.06] pl-3">
+          <button
+            v-for="q in QUICK_FILTERS" :key="q.k"
+            class="cursor-pointer rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold transition-all duration-150 [font-family:'JetBrains_Mono',monospace]"
+            :class="activeQuick === q.k ? CHIP_ACTIVE : 'bg-transparent text-white/40 hover:bg-white/[0.06] hover:text-white/80'"
+            @click="applyQuickFilter(q.k)"
+          >{{ q.l }}</button>
+        </div>
+
+        <!-- Animal type chips -->
+        <div class="flex items-center gap-1 border-l border-white/[0.06] pl-3">
+          <button
+            v-for="j in JENIS_OPTIONS" :key="j"
+            class="flex cursor-pointer items-center gap-1 rounded-xl border px-2.5 py-1 font-mono text-[11px] font-semibold transition-all duration-150 [font-family:'JetBrains_Mono',monospace]"
+            :class="filterState.jenisHewan.includes(j) ? 'border-emerald-400/40 bg-emerald-500/25 text-emerald-200 font-bold' : 'border-white/[0.08] bg-white/[0.03] text-white/40 hover:border-white/[0.15] hover:text-white/80'"
+            @click="toggleFilter('jenisHewan', j)"
+          >
+            <i :class="animalIcon(j)" class="text-[10px]"></i> {{ j.toUpperCase() }}
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 max-md:flex-wrap">
+        <div class="flex items-center gap-1.5 border-r border-white/[0.06] pr-3 font-mono text-[11px] [font-family:'JetBrains_Mono',monospace]">
+          <span class="font-bold uppercase tracking-wider text-white/40">TV HAL:</span>
+          <div class="flex gap-1">
+            <button
+              v-for="p in totalPages" :key="p"
+              class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg border font-mono text-[11px] font-bold transition-all duration-150 [font-family:'JetBrains_Mono',monospace]"
+              :class="p === activePage ? 'border-emerald-400/40 bg-emerald-500/25 text-emerald-200 shadow-[0_0_10px_rgba(52,211,153,0.2)]' : 'border-white/[0.08] bg-white/[0.03] text-white/40 hover:border-white/[0.15] hover:text-white/80'"
+              @click="onPageClick(p)"
+            >{{ p }}</button>
+          </div>
+          <div v-if="!isMobileDevice" class="ml-1 flex items-center gap-1.5 text-white/30">
+            <span>{{ countdown }}s</span>
+            <div class="h-1 w-6 overflow-hidden rounded-full bg-black/40 border border-white/[0.06]">
+              <div
+                class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-[width] duration-1000 ease-linear"
+                :style="{ width: ((AUTO_INTERVAL - countdown) / AUTO_INTERVAL * 100) + '%' }"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <button :class="BTN_ACCENT" @click="handleExport"><i class="fas fa-file-arrow-down"></i> EXPORT XLSX</button>
+        <button :class="BTN_SECONDARY" @click="onResetFilters"><i class="fas fa-arrow-rotate-left"></i> RESET</button>
+        <button :class="BTN_ACCENT" @click="handleSyncMonitor"><i class="fas fa-satellite-dish"></i> SYNC TV</button>
+      </div>
+    </div>
+
+    <!-- ── WORKSPACE (GLASS DUAL PANEL LAYOUT) ── -->
+    <main
+      class="relative z-10 grid min-h-0 flex-1 grid-cols-[1fr_440px] grid-rows-[100%] gap-[18px] overflow-hidden px-8 pb-3.5 max-lg:grid-cols-1 max-lg:grid-rows-[auto] max-lg:overflow-visible max-lg:[min-height:auto] max-md:px-4 max-md:pb-4"
+    >
+      <!-- Operations Table (Glass Data Sheet) -->
+      <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.37)] max-lg:h-[480px]">
+        <div class="flex items-center justify-between border-b border-white/[0.08] bg-slate-950/75 px-4 py-2.5 font-mono text-xs text-white/60 backdrop-blur-xl [font-family:'JetBrains_Mono',monospace]">
+          <div class="flex items-center gap-2">
+            <span class="text-white/70">
+              DATA: <span class="font-bold text-white">{{ filteredCount }}</span> / <span class="text-white/50">{{ dataGrup?.length ?? 0 }}</span> KELOMPOK
+            </span>
+            <span class="text-[10px] text-white/30">• KLIK STATUS UNTUK MERUBAH LANGSUNG</span>
+          </div>
+          <div v-if="hiddenGroupIds.length > 0" class="font-mono text-[11px] font-bold text-rose-300">
+            <i class="fas fa-eye-slash"></i> {{ hiddenGroupIds.length }} DISEMBUNYIKAN
+          </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-auto" :class="SCROLLBAR_TABLE">
+          <table
+            :key="tableKey"
+            class="w-full min-w-[860px] border-separate border-spacing-0"
+            :class="(!dataGrup || filteredRows.length === 0) ? 'h-full min-h-full' : ''"
+          >
+            <thead>
+              <tr class="[&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:border-b [&>th]:border-white/[0.08] [&>th]:bg-slate-950/75 [&>th]:px-3.5 [&>th]:py-2.5 [&>th]:backdrop-blur-xl [&>th]:text-[11px] [&>th]:font-bold [&>th]:uppercase [&>th]:tracking-[0.06em] [&>th]:text-white/60 [&>th]:[font-family:'JetBrains_Mono',monospace]">
+                <th class="w-[44px] text-center">NO</th>
+                <th class="w-[190px] text-left">ID &amp; SHOHIBUL</th>
+                <th class="w-[170px] text-left">HEWAN &amp; PORSI</th>
+                <th
+                  v-for="col in STATUS_COLUMNS" :key="col.field"
+                  class="text-center"
+                  :class="col.options.length === 2 ? 'w-[140px]' : 'w-[175px]'"
+                >{{ col.label }}</th>
+                <th class="w-[130px] text-left">PROGRES</th>
+              </tr>
+            </thead>
+
+            <tbody :class="(!dataGrup || filteredRows.length === 0) ? 'h-full' : ''">
+              <!-- Loading -->
+              <tr v-if="!dataGrup" class="h-full">
+                <td colspan="8" class="h-full px-6 py-10 text-center align-middle text-white/40">
+                  <div class="mx-auto flex max-w-[400px] flex-col items-center justify-center gap-2 text-center">
+                    <i class="fas fa-spinner fa-spin text-xl text-white/40"></i>
+                    <p class="font-mono text-xs uppercase tracking-wider text-white/30">Memuat data dari server...</p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Empty -->
+              <tr v-else-if="filteredRows.length === 0" class="h-full">
+                <td colspan="8" class="h-full px-6 py-10 text-center align-middle text-white/40">
+                  <div class="mx-auto flex max-w-[400px] flex-col items-center justify-center gap-2 text-center">
+                    <i class="fas fa-inbox text-2xl text-white/20"></i>
+                    <p class="font-mono text-xs text-white/40">Tidak ada grup hewan yang cocok dengan parameter filter.</p>
+                    <button
+                      class="mt-1 inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.06] px-3 py-1 font-mono text-[11px] font-semibold text-white/70 backdrop-blur-md transition-all hover:bg-white/[0.1] hover:text-white"
+                      @click="onResetFilters"
+                    >
+                      <i class="fas fa-arrow-rotate-left"></i> RESET FILTER
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Rows -->
+              <template v-else>
+                <tr
+                  v-for="(row, i) in filteredRows" :key="row.id_grup"
+                  class="group border-b border-white/[0.04] transition-all duration-150 hover:bg-white/[0.04]"
+                  :class="[
+                    isGroupHidden(row.id_grup) ? 'opacity-30' : '',
+                    isMutatingId.startsWith(row.id_grup + ':') ? 'animate-[qc-row-mutate_0.6s_ease-out]' : '',
+                  ]"
+                >
+                  <td class="border-b border-white/[0.04] px-3.5 py-2.5 text-center align-middle font-mono text-[11px] text-white/30 [font-family:'JetBrains_Mono',monospace]">{{ i + 1 }}</td>
+
+                  <!-- ID + hide toggle + sohibul names -->
+                  <td class="border-b border-white/[0.04] px-3.5 py-2.5 align-middle text-xs">
+                    <div class="flex items-center gap-2">
+                      <span class="rounded-lg border border-white/[0.1] bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs font-bold text-white backdrop-blur-md [font-family:'JetBrains_Mono',monospace]">{{ row.id_grup }}</span>
+                      <button
+                        class="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-[10px] text-white/40 backdrop-blur-md transition-all hover:border-white/[0.2] hover:text-white/80"
+                        :class="isGroupHidden(row.id_grup) ? 'border-rose-400/40 bg-rose-500/20 text-rose-300' : ''"
+                        :title="isGroupHidden(row.id_grup) ? 'Tampilkan di TV' : 'Sembunyikan dari TV'"
+                        @click="onToggleHide(row.id_grup)"
+                      >
+                        <i :class="isGroupHidden(row.id_grup) ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                      </button>
+                    </div>
+                    <div class="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-white/40 [font-family:'JetBrains_Mono',monospace]">
+                      <span
+                        v-for="s in (row.sohibul_qurban ?? []).slice(0, 2)" :key="s.id ?? s.nama"
+                        class="flex max-w-[170px] items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap text-white/70"
+                      >
+                        <span class="text-[6px] text-emerald-400/60">■</span> {{ s.nama }}
+                      </span>
+                      <span v-if="(row.sohibul_qurban?.length ?? 0) > 2" class="text-[10px] text-white/30">
+                        + {{ (row.sohibul_qurban?.length ?? 0) - 2 }} lainnya
+                      </span>
+                      <span v-if="!(row.sohibul_qurban?.length)" class="text-white/20">—</span>
+                    </div>
+                  </td>
+
+                  <!-- Animal detail -->
+                  <td class="border-b border-white/[0.04] px-3.5 py-2.5 align-middle text-xs">
+                    <div class="flex items-center gap-2">
+                      <div class="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-[11px] text-white/50 backdrop-blur-md">
+                        <i :class="animalIcon(row.jenis_hewan)"></i>
+                      </div>
+                      <div>
+                        <div class="font-semibold text-white/90">{{ row.label_tampilan ?? '—' }}</div>
+                        <div class="font-mono text-[10px] text-white/40 [font-family:'JetBrains_Mono',monospace]">{{ porsiLabel(row) }}</div>
+                        <div v-if="row.is_timer_active" class="mt-0.5 inline-flex items-center gap-1 rounded-lg border border-amber-400/20 bg-amber-500/[0.15] px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300 backdrop-blur-md [font-family:'JetBrains_Mono',monospace]">
+                          <i class="fas fa-stopwatch"></i> TIMER AKTIF
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Status columns (Glass Control Matrix) -->
+                  <td
+                    v-for="col in STATUS_COLUMNS" :key="col.field"
+                    class="border-b border-white/[0.04] px-2.5 py-2.5 text-center align-middle"
+                  >
+                    <div class="inline-flex gap-0.5 rounded-xl border border-white/[0.06] bg-black/40 p-0.5 backdrop-blur-md">
+                      <button
+                        v-for="opt in col.options" :key="opt"
+                        class="relative inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 font-mono text-[10px] uppercase transition-all duration-150 disabled:cursor-wait disabled:opacity-60 [font-family:'JetBrains_Mono',monospace]"
+                        :class="statusOf(row, col.field) === opt
+                          ? PILL_ACTIVE[opt.toLowerCase()]
+                          : 'bg-transparent text-white/30 hover:text-white/70'"
+                        :disabled="isMutating(row.id_grup, col.field)"
+                        @click="handleStatusClick($event, row.id_grup, col.field, opt)"
+                      >
+                        <i v-if="isMutating(row.id_grup, col.field) && statusOf(row, col.field) === opt" class="fas fa-circle-notch fa-spin text-[9px]"></i>
+                        {{ opt }}
+                      </button>
+                    </div>
+                  </td>
+
+                  <!-- Progress / Points -->
+                  <td class="border-b border-white/[0.04] px-3.5 py-2.5 align-middle text-xs">
+                    <div class="flex w-[120px] flex-col gap-1">
+                      <div class="flex items-center justify-between font-mono text-[10px] [font-family:'JetBrains_Mono',monospace]">
+                        <span class="font-bold text-white/70">{{ rowScore(row) }}/12 PTS</span>
+                        <span class="text-white/40">{{ Math.round((rowScore(row) / 12) * 100) }}%</span>
+                      </div>
+                      <div class="h-1 w-full overflow-hidden rounded-full bg-black/40 border border-white/[0.06] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+                        <div
+                          class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300"
+                          :style="{ width: rowScoreBarWidth(rowScore(row)) }"
+                        ></div>
+                      </div>
+                      <div v-if="row.updated_by" class="truncate font-mono text-[9px] text-white/25 [font-family:'JetBrains_Mono',monospace]" :title="row.updated_by">
+                        {{ row.updated_by }}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Real-time Activity Audit Log (Glass Stream Panel) -->
+      <aside class="flex h-full min-h-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.37)] max-lg:h-[420px]">
+        <div class="flex items-center justify-between border-b border-white/[0.08] bg-slate-950/75 px-4 py-2.5 backdrop-blur-xl">
+          <h2 class="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-white/80 [font-family:'JetBrains_Mono',monospace]">
+            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]"></span>
+            LOG AUDIT REALTIME
+          </h2>
+          <div class="flex items-center gap-1">
+            <button
+              class="flex cursor-pointer items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] font-bold text-white/50 backdrop-blur-md transition-all hover:border-white/[0.15] hover:text-white/80 [font-family:'JetBrains_Mono',monospace]"
+              :class="isPaused ? 'border-amber-400/30 bg-amber-500/[0.15] text-amber-300' : ''"
+              :title="isPaused ? 'Lanjutkan auto-scroll' : 'Jeda auto-scroll'"
+              @click="isPaused = !isPaused"
+            >
+              <i :class="isPaused ? 'fas fa-play' : 'fas fa-pause'" class="text-[9px]"></i>
+              {{ isPaused ? 'JEDA' : 'LIVE' }}
+            </button>
+            <button
+              class="flex cursor-pointer items-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-white/40 backdrop-blur-md transition-all hover:border-rose-400/30 hover:bg-rose-500/[0.15] hover:text-rose-300 [font-family:'JetBrains_Mono',monospace]"
+              title="Bersihkan log tampilan" @click="clearView"
+            >
+              <i class="fas fa-trash-can text-[9px]"></i>
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref="feedEl"
+          class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2.5"
+          :class="SCROLLBAR_FEED"
+          @scroll="onFeedScroll"
+        >
+          <div v-if="alfLogs.length === 0 && alfIsLoading" class="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center font-mono text-xs text-white/40 [font-family:'JetBrains_Mono',monospace]">
+            <i class="fas fa-spinner fa-spin text-lg text-white/30"></i>
+            <span>MEMUAT RIWAYAT AKTIVITAS...</span>
+          </div>
+          <div v-else-if="alfLogs.length === 0" class="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center font-mono text-xs text-white/40 [font-family:'JetBrains_Mono',monospace]">
+            <i class="fas fa-satellite-dish text-lg text-white/20"></i>
+            <span class="font-bold text-white/50">MENUNGGU TRANSMISI BARU</span>
+            <span class="text-[10px] text-white/25">Perubahan status hewan akan terdaftar di sini secara realtime.</span>
+          </div>
+
+          <div
+            v-for="(log, i) in alfLogs" :key="log.id ?? `log-${i}`"
+            class="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.03] p-2 backdrop-blur-md transition-all duration-150 hover:border-white/[0.12] hover:bg-white/[0.06]"
+          >
+            <div class="flex items-center justify-between border-b border-white/[0.06] pb-1.5 font-mono text-[11px] [font-family:'JetBrains_Mono',monospace]">
+              <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined !text-[13px]" :style="{ color: faseStyle(log.fase).text }">{{ faseStyle(log.fase).icon }}</span>
+                <span class="font-bold uppercase tracking-wider" :style="{ color: faseStyle(log.fase).text }">{{ faseLabel(log.fase) }}</span>
+              </div>
+              <span class="tabular-nums text-white/30">{{ formatTime(log.created_at) }}</span>
+            </div>
+
+            <div class="flex flex-col gap-1 pt-1.5 font-mono text-[11px] [font-family:'JetBrains_Mono',monospace]">
+              <div class="flex items-center justify-between">
+                <span class="text-white/40">STATUS:</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="line-through text-white/30" :class="TONE_CLASS[statusTone(log.status_lama)]">{{ log.status_lama }}</span>
+                  <span class="text-white/20">→</span>
+                  <span class="font-bold uppercase" :class="TONE_CLASS[statusTone(log.status_baru)]">{{ log.status_baru }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-white/40">HEWAN:</span>
+                <span class="font-bold text-white/80">{{ log.id_grup }}</span>
+              </div>
+
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="text-white/40">PETUGAS:</span>
+                <span class="text-white/50">{{ log.actor_name }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-white/[0.06] bg-slate-950/60 px-3.5 py-1.5 font-mono text-[10px] text-white/30 backdrop-blur-xl [font-family:'JetBrains_Mono',monospace]">
+          <span>{{ alfIsLoading ? 'SYNCING...' : 'LIVE AUDIT FEED' }}</span>
+          <span class="font-bold text-white/50">{{ entryCount }} ENTRIES</span>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ── BOTTOM STATUS BAR (GLASS) ── -->
+    <footer class="relative z-20 mt-auto flex h-[38px] shrink-0 items-center justify-between border-t border-white/[0.06] bg-slate-950/60 px-8 font-mono text-[10px] text-white/30 backdrop-blur-xl max-lg:sticky max-lg:bottom-0 [font-family:'JetBrains_Mono',monospace]">
+      <div class="flex items-center gap-3">
+        <span class="font-bold text-white/60">AHSANTV MEDIA</span>
+        <span>IDUL ADHA 1446 H</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="hiddenGroupIds.length > 0"
+          class="cursor-pointer font-bold text-rose-300/80 hover:text-rose-300"
+          @click="clearAllHidden"
+        >
+          [RESET {{ hiddenGroupIds.length }} TERSEMBUNYI]
+        </button>
+      </div>
+    </footer>
+
+    <!-- Glass Toast Alert -->
+    <div
+      class="pointer-events-none fixed bottom-10 left-1/2 z-[999] -translate-x-1/2 rounded-2xl border border-emerald-500/30 bg-slate-950/85 px-4 py-1.5 font-mono text-xs font-semibold text-white/90 backdrop-blur-2xl transition-all duration-150 shadow-[0_8px_32px_rgba(0,0,0,0.5)] [font-family:'JetBrains_Mono',monospace]"
+      :class="toastVisible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'"
+    >
+      {{ toastMsg }}
+    </div>
+  </div>
+</template>
+
+<style>
+/* Glassmorphism keyframe states */
+@keyframes qc-ripple {
+  0%   { transform: scale(0);   opacity: 0.8; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes qc-row-mutate {
+  0%   { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0); }
+  40%  { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.4); }
+  100% { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0); }
+}
+</style>
